@@ -1,10 +1,6 @@
 // create abstract class Shape
 #include "Shape.h"
 
-std::optional<double> Shape::intersect(const Rayon& ray) const {
-	return std::nullopt;
-}
-
 std::optional<double> Sphere::intersect(const Rayon& ray) const
 {
 	Vec3 oc = ray.origin - getPosition();

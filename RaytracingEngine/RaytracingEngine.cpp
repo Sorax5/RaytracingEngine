@@ -8,6 +8,60 @@
 #define WIDTH 800
 #define HEIGHT 800
 
+std::vector<double> getAllIntersections(const std::vector<std::unique_ptr<Shape>>& shapes, const Rayon& ray)
+{
+	std::vector<double> intersections = std::vector<double>(shapes.size());
+	for (int i = 0; i < shapes.size(); i++) {
+		const std::unique_ptr<Shape>& shape = shapes[i];
+		std::optional<double> intersection = shape->intersect(ray);
+		if (intersection.has_value()) {
+			intersections[i] = intersection.value();
+		}
+		else {
+			intersections[i] = -1;
+		}
+	}
+	return intersections;
+}
+
+double getClosestIntersection(const std::vector<double>& intersections)
+{
+	double closestIntersection = INFINITY;
+	int closestIndex = -1;
+	for(int i = 0; i < intersections.size(); i++)
+	{
+		if (intersections[i] <= 0.001f)
+		{
+			continue;
+		}
+		if (intersections[i] < closestIntersection) {
+			closestIntersection = intersections[i];
+			closestIndex = i;
+		}
+	}
+
+	return closestIndex;
+}
+
+std::vector<Color> tonemap(const std::vector<Vec3>& pixels)
+{
+	std::vector<Color> colorPixels = std::vector<Color>(pixels.size());
+	for (int i = 0; i < pixels.size(); i++) {
+		colorPixels[i] = Color(
+			static_cast<uint8_t>(std::min(255.0, std::max(0.0, pixels[i].x * 255.0))),
+			static_cast<uint8_t>(std::min(255.0, std::max(0.0, pixels[i].y * 255.0))),
+			static_cast<uint8_t>(std::min(255.0, std::max(0.0, pixels[i].z * 255.0)))
+		);
+	}
+	return colorPixels;
+}
+
+Vec3 renderColor(const double& distance, const Shape& shape, const Camera& camera)
+{
+	double depth = 1 - (distance - camera.nearPlaneDistance) / (camera.farPlaneDistance - camera.nearPlaneDistance);
+	return shape.getColor() * depth;
+}
+
 int main()
 {
 	Vec3 origin = Vec3(0, 0, -50);
@@ -15,81 +69,37 @@ int main()
 
 	std::vector<Vec3> pixels = std::vector<Vec3>(WIDTH * HEIGHT);
 
-	std::vector<Shape*> shapes = std::vector<Shape*>(8);
+	std::vector<std::unique_ptr<Shape>> shapePointers = std::vector<std::unique_ptr<Shape>>();
+	shapePointers.push_back(std::make_unique<Sphere>(Vec3(25, 0, 18), 10, Vec3(1, 0, 0)));
+	shapePointers.push_back(std::make_unique<Sphere>(Vec3(-45, 0, 20), 15, Vec3(0, 1, 0)));
+	shapePointers.push_back(std::make_unique<Sphere>(Vec3(12, 0, 15), 5, Vec3(0, 0, 1)));
 
-	Shape* shape = new Sphere(Vec3(25, 0, 18), 10, Vec3(1, 0, 0));
-	shapes[0] = shape;
-	Shape* shape2 = new Sphere(Vec3(-45, 0, 20), 15, Vec3(0, 1, 0));
-	shapes[1] = shape2;
-	Shape* shape3 = new Sphere(Vec3(12, 0, 15), 5, Vec3(0, 0, 1));
-	shapes[2] = shape3;
-
-	Shape* shape4 = new Plane(Vec3(0, 50, 0), Vec3(0, 1, 0), Vec3(1, 1, 1));
-	shapes[3] = shape4;
-	Shape* shape5 = new Plane(Vec3(0, -50, 0), Vec3(0, -1, 0), Vec3(1, 1, 1));
-	shapes[4] = shape5;
-	Shape* shape6 = new Plane(Vec3(-50, 0, 0), Vec3(-1, 0, 0), Vec3(1, 0, 0));
-	shapes[5] = shape6;
-	Shape* shape7 = new Plane(Vec3(50, 0, 0), Vec3(1, 0, 0), Vec3(0, 0, 1));
-	shapes[6] = shape7;
-	Shape* shape8 = new Plane(Vec3(0, 0, 30), Vec3(0, 0, -1), Vec3(0, 1, 1));
-	shapes[7] = shape8;
+	shapePointers.push_back(std::make_unique<Plane>(Vec3(0, 50, 0), Vec3(0, 1, 0), Vec3(1, 1, 1)));
+	shapePointers.push_back(std::make_unique<Plane>(Vec3(0, -50, 0), Vec3(0, -1, 0), Vec3(1, 1, 1)));
+	shapePointers.push_back(std::make_unique<Plane>(Vec3(-50, 0, 0), Vec3(-1, 0, 0), Vec3(1, 0, 0)));
+	shapePointers.push_back(std::make_unique<Plane>(Vec3(50, 0, 0), Vec3(1, 0, 0), Vec3(0, 0, 1)));
+	shapePointers.push_back(std::make_unique<Plane>(Vec3(0, 0, 30), Vec3(0, 0, -1), Vec3(0, 1, 1)));
 
 
 	for (int y = 0; y < HEIGHT; y++) {
 		for (int x = 0; x < WIDTH; x++) {
 			Rayon ray = camera.getRay(x, y);
 
-			std::vector<double> intersections = std::vector<double>(shapes.size());
-			for(int i = 0; i < shapes.size(); i++) {
-				Shape* currentShape = shapes[i];
-				std::optional<double> intersection = currentShape->intersect(ray);
-				if (intersection.has_value()) {
-					intersections[i] = intersection.value();
-				}
-				else {
-					intersections[i] = -1;
-				}
-			}
-
-
-			double closestIntersection = INFINITY;
-			int closestSphereIndex = -1;
-			for (int i = 0; i < intersections.size(); i++) {
-				double intersection = intersections[i];
-				if (intersection <= 0.001f)
-				{
-					continue;
-				}
-
-				if (intersection < closestIntersection) {
-					closestIntersection = intersection;
-					closestSphereIndex = i;
-				}
-			}
+			std::vector<double> intersections = getAllIntersections(shapePointers, ray);
+			int nearestShapeIndex = getClosestIntersection(intersections);
 
 			Vec3 color = Vec3(0, 0, 0);
-			if (closestSphereIndex != -1) {
-				double distance = intersections[closestSphereIndex];
-				double brightness = (distance - camera.nearPlaneDistance) / (camera.farPlaneDistance - camera.nearPlaneDistance);
-				brightness = 1.0 - brightness;
-
-				Shape* closestShape = shapes[closestSphereIndex];
-				color = closestShape->getColor() * brightness;
+			if (nearestShapeIndex != -1) {
+				double distance = intersections[nearestShapeIndex];
+				std::unique_ptr<Shape>& shape = shapePointers[nearestShapeIndex];
+				color = renderColor(distance, *shape, camera);
 			}
 			
 			pixels[y * WIDTH + x] = color;
 		}
 	}
 
-	std::vector<Color> colorPixels = std::vector<Color>(WIDTH * HEIGHT);
-	for (int i = 0; i < WIDTH * HEIGHT; i++) {
-		colorPixels[i] = Color(
-			static_cast<uint8_t>(std::min(255.0, std::max(0.0, pixels[i].x * 255.0))),
-			static_cast<uint8_t>(std::min(255.0, std::max(0.0, pixels[i].y * 255.0))),
-			static_cast<uint8_t>(std::min(255.0, std::max(0.0, pixels[i].z * 255.0)))
-		);
-	}
+	std::vector<Color> colorPixels = tonemap(pixels);
 
 	writePPM("output.ppm", colorPixels, WIDTH, HEIGHT);
 }
