@@ -4,6 +4,8 @@
 #include <vector>
 
 #include <iostream>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define WIDTH 800
 #define HEIGHT 800
@@ -102,6 +104,7 @@ int main()
 	std::vector<Color> colorPixels = tonemap(pixels);
 
 	writePPM("output.ppm", colorPixels, WIDTH, HEIGHT);
+	system("start \"\" \"gimp-3.0.exe\" \"output.ppm\"");
 }
 
 // Exécuter le programme : Ctrl+F5 ou menu Déboguer > Exécuter sans débogage
