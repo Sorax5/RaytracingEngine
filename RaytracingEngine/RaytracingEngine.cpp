@@ -10,8 +10,8 @@
 
 int main()
 {
-	Vec3 origin = Vec3(0, 0, 0);
-	Camera camera = Camera(origin, 100, WIDTH, HEIGHT, 30, 80);
+	Vec3 origin = Vec3(0, 0, -50);
+	Camera camera = Camera(origin, 400, WIDTH, HEIGHT, 0, 150);
 
 	std::vector<Vec3> pixels = std::vector<Vec3>(WIDTH * HEIGHT);
 
@@ -19,7 +19,7 @@ int main()
 
 	Shape* shape = new Sphere(Vec3(25, 0, 18), 10, Vec3(1, 0, 0));
 	shapes[0] = shape;
-	Shape* shape2 = new Sphere(Vec3(-10, 0, 20), 15, Vec3(0, 1, 0));
+	Shape* shape2 = new Sphere(Vec3(-45, 0, 20), 15, Vec3(0, 1, 0));
 	shapes[1] = shape2;
 	Shape* shape3 = new Sphere(Vec3(12, 0, 15), 5, Vec3(0, 0, 1));
 	shapes[2] = shape3;
