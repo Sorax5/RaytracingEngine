@@ -5,43 +5,28 @@
 #include <iostream>
 
 #define WIDTH 800
-#define HEIGHT 600
-
-double normalize(double value, double min, double max) {
-	if (value < min)
-	{
-		value = min;
-	}
-	if (value > max)
-	{
-		value = max;
-	}
-	return (value - min) / (max - min);
-}
+#define HEIGHT 800
 
 int main()
 {
-	Vec3 origin = Vec3(WIDTH / 2, HEIGHT / 2, -500);
-	Camera camera = Camera(origin, 500, WIDTH, HEIGHT);
-
+	Vec3 origin = Vec3(0, 0, 0);
+	Camera camera = Camera(origin, 100, WIDTH, HEIGHT, 20, 65);
 
 	std::vector<Vec3> pixels = std::vector<Vec3>(WIDTH * HEIGHT);
+	std::vector<Sphere> spheres = std::vector<Sphere>(3);
 
-	std::vector<Sphere> spheres = std::vector<Sphere>(2);
-
-	Sphere sphere = Sphere(Vec3(400, 300, 10), 50, Vec3(1, 0, 1));
+	Sphere sphere = Sphere(Vec3(25, 0, 55), 20, Vec3(1, 0, 0));
 	spheres[0] = sphere;
-	Sphere sphere2 = Sphere(Vec3(450, 300, 100), 100, Vec3(1, 1, 0));
+	Sphere sphere2 = Sphere(Vec3(-10, 0, 80), 40, Vec3(0, 1, 0));
 	spheres[1] = sphere2;
+	Sphere sphere3 = Sphere(Vec3(12, 0, 45), 10, Vec3(0, 0, 1));
+	spheres[2] = sphere3;
 
 	for (int y = 0; y < HEIGHT; y++) {
 		for (int x = 0; x < WIDTH; x++) {
-			Vec3 pixel = Vec3(x, y, 0);
-			Vec3 directionToScreenPixel = (pixel - origin).normalize();
 			Rayon ray = camera.getRay(x, y);
 
 			std::vector<double> intersections = std::vector<double>(spheres.size());
-
 			for(int i = 0; i < spheres.size(); i++) {
 				Sphere& currentSphere = spheres[i];
 				std::optional<double> intersection = currentSphere.intersect(ray);
@@ -72,15 +57,14 @@ int main()
 			Vec3 color = Vec3(0, 0, 0);
 			if (closestSphereIndex != -1) {
 				double distance = intersections[closestSphereIndex];
-				double brightness = 1.0 / (1.0 + distance * 0.005);
+				double brightness = (distance - camera.nearPlaneDistance) / (camera.farPlaneDistance - camera.nearPlaneDistance);
+				brightness = 1.0 - brightness;
+
 				Sphere& closestSphere = spheres[closestSphereIndex];
 				color = closestSphere.color * brightness;
 			}
 			
-			double r = color.x;
-			double g = color.y;
-			double b = color.z;
-			pixels[y * WIDTH + x] = Vec3(r, g, b);
+			pixels[y * WIDTH + x] = color;
 		}
 	}
 

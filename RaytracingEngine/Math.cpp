@@ -19,7 +19,7 @@ struct Vec3 {
         return { x - other.x, y - other.y, z - other.z };
     }
 
-    Vec3 operator*(const float amount) const
+    Vec3 operator*(const double amount) const
     {
         return { x * amount, y * amount, z * amount };
     }
@@ -98,15 +98,23 @@ struct Sphere {
 
 struct Camera {
     Vec3 position;
-	float distanceToScreen;
+	Vec3 forward;
+
 	float width, height;
+    float focal;
+	float farPlaneDistance;
+	float nearPlaneDistance;
 
-	Camera(Vec3& position, float distanceToScreen, float width, float height) : position(position), distanceToScreen(distanceToScreen), width(width), height(height) {}
-
-    Rayon getRay(float x, float y) const
+    Camera(const Vec3& position, float focal, float width, float height, float nearPlaneDistance = 1.0f, float farPlaneDistance = 1000.0f)
+        : position(position), focal(focal), width(width), height(height), nearPlaneDistance(nearPlaneDistance), farPlaneDistance(farPlaneDistance)
     {
-        Vec3 screenPoint = Vec3(x, y, position.z + distanceToScreen);
+		forward = Vec3(0, 0, 1);
+	}
+
+    Rayon getRay(int pixelX, int pixelY) const
+    {
+		Vec3 screenPoint = Vec3((pixelX - width / 2.0f), (pixelY - height / 2.0f), position.z + focal);
         Vec3 direction = (screenPoint - position).normalize();
-        return Rayon(position, direction);
-    }
+		return Rayon(position, direction);
+	}
 };
