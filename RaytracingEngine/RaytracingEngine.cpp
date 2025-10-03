@@ -1,5 +1,6 @@
 #include "Math.cpp"
 #include "Image.h"
+#include "Shape.h"
 #include <vector>
 
 #include <iostream>
@@ -10,26 +11,39 @@
 int main()
 {
 	Vec3 origin = Vec3(0, 0, 0);
-	Camera camera = Camera(origin, 100, WIDTH, HEIGHT, 20, 65);
+	Camera camera = Camera(origin, 100, WIDTH, HEIGHT, 30, 80);
 
 	std::vector<Vec3> pixels = std::vector<Vec3>(WIDTH * HEIGHT);
-	std::vector<Sphere> spheres = std::vector<Sphere>(3);
 
-	Sphere sphere = Sphere(Vec3(25, 0, 55), 20, Vec3(1, 0, 0));
-	spheres[0] = sphere;
-	Sphere sphere2 = Sphere(Vec3(-10, 0, 80), 40, Vec3(0, 1, 0));
-	spheres[1] = sphere2;
-	Sphere sphere3 = Sphere(Vec3(12, 0, 45), 10, Vec3(0, 0, 1));
-	spheres[2] = sphere3;
+	std::vector<Shape*> shapes = std::vector<Shape*>(8);
+
+	Shape* shape = new Sphere(Vec3(25, 0, 18), 10, Vec3(1, 0, 0));
+	shapes[0] = shape;
+	Shape* shape2 = new Sphere(Vec3(-10, 0, 20), 15, Vec3(0, 1, 0));
+	shapes[1] = shape2;
+	Shape* shape3 = new Sphere(Vec3(12, 0, 15), 5, Vec3(0, 0, 1));
+	shapes[2] = shape3;
+
+	Shape* shape4 = new Plane(Vec3(0, 50, 0), Vec3(0, 1, 0), Vec3(1, 1, 1));
+	shapes[3] = shape4;
+	Shape* shape5 = new Plane(Vec3(0, -50, 0), Vec3(0, -1, 0), Vec3(1, 1, 1));
+	shapes[4] = shape5;
+	Shape* shape6 = new Plane(Vec3(-50, 0, 0), Vec3(-1, 0, 0), Vec3(1, 0, 0));
+	shapes[5] = shape6;
+	Shape* shape7 = new Plane(Vec3(50, 0, 0), Vec3(1, 0, 0), Vec3(0, 0, 1));
+	shapes[6] = shape7;
+	Shape* shape8 = new Plane(Vec3(0, 0, 30), Vec3(0, 0, -1), Vec3(0, 1, 1));
+	shapes[7] = shape8;
+
 
 	for (int y = 0; y < HEIGHT; y++) {
 		for (int x = 0; x < WIDTH; x++) {
 			Rayon ray = camera.getRay(x, y);
 
-			std::vector<double> intersections = std::vector<double>(spheres.size());
-			for(int i = 0; i < spheres.size(); i++) {
-				Sphere& currentSphere = spheres[i];
-				std::optional<double> intersection = currentSphere.intersect(ray);
+			std::vector<double> intersections = std::vector<double>(shapes.size());
+			for(int i = 0; i < shapes.size(); i++) {
+				Shape* currentShape = shapes[i];
+				std::optional<double> intersection = currentShape->intersect(ray);
 				if (intersection.has_value()) {
 					intersections[i] = intersection.value();
 				}
@@ -60,8 +74,8 @@ int main()
 				double brightness = (distance - camera.nearPlaneDistance) / (camera.farPlaneDistance - camera.nearPlaneDistance);
 				brightness = 1.0 - brightness;
 
-				Sphere& closestSphere = spheres[closestSphereIndex];
-				color = closestSphere.color * brightness;
+				Shape* closestShape = shapes[closestSphereIndex];
+				color = closestShape->getColor() * brightness;
 			}
 			
 			pixels[y * WIDTH + x] = color;
