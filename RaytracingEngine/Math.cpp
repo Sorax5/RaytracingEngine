@@ -34,6 +34,11 @@ struct Vec3 {
 		return { x + other.x, y + other.y, z + other.z };
 	}
 
+    Vec3 operator/(double s) const 
+    { 
+        return { x / s, y / s, z / s }; 
+    }
+
     double unsafeIndex(int index)
     {
         switch (index) {

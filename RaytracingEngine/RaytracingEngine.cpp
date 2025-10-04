@@ -1,5 +1,6 @@
 #include "Math.cpp"
 #include "Image.h"
+#include "Light.h"
 #include "Shape.h"
 #include <vector>
 
@@ -64,6 +65,33 @@ Vec3 renderColor(const double& distance, const Shape& shape, const Camera& camer
 	return shape.getColor() * depth;
 }
 
+Vec3 calculateLighting(const Vec3& point, const Vec3& normal, const std::vector<std::unique_ptr<Light>>& lights, const std::vector<std::unique_ptr<Shape>>& shapes, Vec3 albedo)
+{
+	Vec3 color = Vec3(0,0,0);
+	for (const std::unique_ptr<Light>& light : lights) {
+		Vec3 lightDir = (light->position - point).normalize();
+		double distanceCarrer = (light->position - point).dot(light->position - point);
+
+		bool inShadow = false;
+		Vec3 departure = point + normal * 0.001f;
+		Rayon shadowRay = Rayon(departure, lightDir);
+		for(const auto& shape : shapes) {
+			std::optional<double> shadowIntersection = shape->intersect(shadowRay);
+			if (shadowIntersection.has_value() && shadowIntersection.value() > 0.001f) {
+				inShadow = true;
+				break;
+			}
+		}
+
+		if (!inShadow) {
+			double diff = std::max(normal.dot(lightDir), 0.0);
+			Vec3 contribution = (light->color * light->intensity / distanceCarrer) * diff * albedo;
+			color = color + contribution;
+		}
+	}
+	return color;
+}
+
 int main()
 {
 	Vec3 origin = Vec3(0, 0, -50);
@@ -82,6 +110,9 @@ int main()
 	shapePointers.push_back(std::make_unique<Plane>(Vec3(50, 0, 0), Vec3(1, 0, 0), Vec3(0, 0, 1)));
 	shapePointers.push_back(std::make_unique<Plane>(Vec3(0, 0, 30), Vec3(0, 0, -1), Vec3(0, 1, 1)));
 
+	std::vector<std::unique_ptr<Light>> lightPointers = std::vector<std::unique_ptr<Light>>();
+	lightPointers.push_back(std::make_unique<Light>(Vec3(0, 0, 0), Vec3(1, 1, 1), 1));
+
 
 	for (int y = 0; y < HEIGHT; y++) {
 		for (int x = 0; x < WIDTH; x++) {
@@ -93,8 +124,14 @@ int main()
 			Vec3 color = Vec3(0, 0, 0);
 			if (nearestShapeIndex != -1) {
 				double distance = intersections[nearestShapeIndex];
-				std::unique_ptr<Shape>& shape = shapePointers[nearestShapeIndex];
-				color = renderColor(distance, *shape, camera);
+				std::unique_ptr<Shape>& const shape = shapePointers[nearestShapeIndex];
+
+				Vec3 albedo = shape->getColor();
+
+
+				Vec3 pointAtIntersection = ray.pointAtDistance(distance);
+				Vec3 normalAtIntersection = shape->getNormalAt(pointAtIntersection).value();
+				color = calculateLighting(ray.pointAtDistance(distance), shape->getNormalAt(ray.pointAtDistance(distance)).value(), lightPointers, shapePointers, albedo);
 			}
 			
 			pixels[y * WIDTH + x] = color;
