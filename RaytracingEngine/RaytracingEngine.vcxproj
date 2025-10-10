@@ -131,7 +131,6 @@
     <ClCompile Include="Light.cpp" />
     <ClCompile Include="RaytracingEngine.cpp" />
     <ClCompile Include="Math.cpp" />
-    <ClCompile Include="Shape.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Image.h" />
