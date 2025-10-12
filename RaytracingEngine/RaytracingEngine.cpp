@@ -2,6 +2,7 @@
 #include "Image.h"
 #include "Light.h"
 #include "Shape.h"
+#include "Scene.h"
 #include <vector>
 
 #include <iostream>
@@ -10,41 +11,6 @@
 
 #define WIDTH 800
 #define HEIGHT 800
-
-std::vector<double> getAllIntersections(const std::vector<std::unique_ptr<Shape>>& shapes, const Rayon& ray)
-{
-	std::vector<double> intersections = std::vector<double>(shapes.size());
-	for (int i = 0; i < shapes.size(); i++) {
-		const std::unique_ptr<Shape>& shape = shapes[i];
-		std::optional<double> intersection = shape->intersect(ray);
-		if (intersection.has_value()) {
-			intersections[i] = intersection.value();
-		}
-		else {
-			intersections[i] = -1;
-		}
-	}
-	return intersections;
-}
-
-double getClosestIntersection(const std::vector<double>& intersections)
-{
-	double closestIntersection = INFINITY;
-	int closestIndex = -1;
-	for(int i = 0; i < intersections.size(); i++)
-	{
-		if (intersections[i] <= 0.001f)
-		{
-			continue;
-		}
-		if (intersections[i] < closestIntersection) {
-			closestIntersection = intersections[i];
-			closestIndex = i;
-		}
-	}
-
-	return closestIndex;
-}
 
 std::vector<Color> tonemap(const std::vector<Vec3>& pixels)
 {
@@ -59,13 +25,7 @@ std::vector<Color> tonemap(const std::vector<Vec3>& pixels)
 	return colorPixels;
 }
 
-Vec3 renderColor(const double& distance, const Shape& shape, const Camera& camera)
-{
-	double depth = 1 - (distance - camera.nearPlaneDistance) / (camera.farPlaneDistance - camera.nearPlaneDistance);
-	return shape.getColor() * depth;
-}
-
-Vec3 calculateLighting(const Vec3& point, const Vec3& normal, const std::vector<std::unique_ptr<Light>>& lights, const std::vector<std::unique_ptr<Shape>>& shapes, Vec3 albedo)
+/*Vec3 calculateLighting(const Vec3& point, const Vec3& normal, const std::vector<std::unique_ptr<Light>>& lights, const std::vector<std::unique_ptr<Shape>>& shapes, Vec3 albedo)
 {
 	Vec3 color = Vec3(0,0,0);
 	for (const std::unique_ptr<Light>& light : lights) {
@@ -90,31 +50,28 @@ Vec3 calculateLighting(const Vec3& point, const Vec3& normal, const std::vector<
 		}
 	}
 	return color;
-}
+}*/
 
 int main()
 {
 	Vec3 origin = Vec3(0, 0, -50);
-	Camera camera = Camera(origin, 400, WIDTH, HEIGHT, 0, 150);
+	Camera camera = Camera(origin, 300, WIDTH, HEIGHT, 0, 150);
+	Scene scene = Scene(camera);
+	scene.addSphere(Sphere(10, Vec3(25, 0, 18), Vec3(1, 0, 0)));
+	scene.addSphere(Sphere(15, Vec3(-45, 0, 20), Vec3(0, 1, 0)));
+	scene.addSphere(Sphere(5, Vec3(12, 0, 15), Vec3(0, 0, 1)));
+	scene.addPlane(Plane(Vec3(0, 50, 0), Vec3(0, 1, 0), Vec3(1, 1, 1)));
+	scene.addPlane(Plane(Vec3(0, -50, 0), Vec3(0, -1, 0), Vec3(1, 1, 1)));
+	scene.addPlane(Plane(Vec3(-50, 0, 0), Vec3(-1, 0, 0), Vec3(1, 0, 0)));
+	scene.addPlane(Plane(Vec3(50, 0, 0), Vec3(1, 0, 0), Vec3(0, 0, 1)));
+	scene.addPlane(Plane(Vec3(0, 0, 30), Vec3(0, 0, -1), Vec3(0, 1, 1)));
+	scene.addLight(Light(Vec3(0, 0, 0), Vec3(1, 1, 1), 1));
 
-	std::vector<Vec3> pixels = std::vector<Vec3>(WIDTH * HEIGHT);
-
-	std::vector<std::unique_ptr<Shape>> shapePointers = std::vector<std::unique_ptr<Shape>>();
-	shapePointers.push_back(std::make_unique<Sphere>(Vec3(25, 0, 18), 10, Vec3(1, 0, 0)));
-	shapePointers.push_back(std::make_unique<Sphere>(Vec3(-45, 0, 20), 15, Vec3(0, 1, 0)));
-	shapePointers.push_back(std::make_unique<Sphere>(Vec3(12, 0, 15), 5, Vec3(0, 0, 1)));
-
-	shapePointers.push_back(std::make_unique<Plane>(Vec3(0, 50, 0), Vec3(0, 1, 0), Vec3(1, 1, 1)));
-	shapePointers.push_back(std::make_unique<Plane>(Vec3(0, -50, 0), Vec3(0, -1, 0), Vec3(1, 1, 1)));
-	shapePointers.push_back(std::make_unique<Plane>(Vec3(-50, 0, 0), Vec3(-1, 0, 0), Vec3(1, 0, 0)));
-	shapePointers.push_back(std::make_unique<Plane>(Vec3(50, 0, 0), Vec3(1, 0, 0), Vec3(0, 0, 1)));
-	shapePointers.push_back(std::make_unique<Plane>(Vec3(0, 0, 30), Vec3(0, 0, -1), Vec3(0, 1, 1)));
-
-	std::vector<std::unique_ptr<Light>> lightPointers = std::vector<std::unique_ptr<Light>>();
-	lightPointers.push_back(std::make_unique<Light>(Vec3(0, 0, 0), Vec3(1, 1, 1), 1));
+	scene.generateDepthmap();
+	std::vector<Vec3> pixels = scene.generateColormap();
 
 
-	for (int y = 0; y < HEIGHT; y++) {
+	/*for (int y = 0; y < HEIGHT; y++) {
 		for (int x = 0; x < WIDTH; x++) {
 			Rayon ray = camera.getRay(x, y);
 
@@ -136,9 +93,49 @@ int main()
 			
 			pixels[y * WIDTH + x] = color;
 		}
-	}
+	}*/
 
 	std::vector<Color> colorPixels = tonemap(pixels);
+	int numberOfColors = 0;
+	Vec3 moyenneCouleur = Vec3(0, 0, 0);
+	for (const Color& color : colorPixels) {
+		if (color.r != 0 || color.g != 0 || color.b != 0) {
+			numberOfColors++;
+			moyenneCouleur = moyenneCouleur + Vec3(color.r, color.g, color.b);
+		}
+	}
+
+	moyenneCouleur = moyenneCouleur / numberOfColors;
+
+	std::cout << "Number of unique colors: " << numberOfColors << std::endl;
+	std::cout << "Average color: (" << moyenneCouleur.x / numberOfColors << ", " << moyenneCouleur.y / numberOfColors << ", " << moyenneCouleur.z / numberOfColors << ")" << std::endl;
+
+	std::vector<HitInfo> depthMap = scene.getDepthMap();
+	// some statistics on depth map
+	int numberOfHits = 0;
+	for (const HitInfo& hit : depthMap) {
+		if (hit.isValid()) {
+			numberOfHits++;
+		}
+	}
+	std::cout << "Total pixels: " << depthMap.size() << std::endl;
+
+	// number of each shape that was hit
+	std::vector<int> shapeHitCount(scene.getSpheres().size() + scene.getPlanes().size(), 0);
+	for (const HitInfo& hit : depthMap) {
+		if (hit.isValid()) {
+			shapeHitCount[hit.index]++;
+		}
+	}
+	std::cout << "Number of hits: " << numberOfHits << std::endl;
+	for (int i = 0; i < shapeHitCount.size(); i++) {
+		if (i < scene.getSpheres().size()) {
+			std::cout << "Sphere " << i << " was hit " << shapeHitCount[i] << " times." << std::endl;
+		}
+		else {
+			std::cout << "Plane " << (i - scene.getSpheres().size()) << " was hit " << shapeHitCount[i] << " times." << std::endl;
+		}
+	}
 
 	writePPM("output.ppm", colorPixels, WIDTH, HEIGHT);
 	system("start \"\" \"gimp-3.0.exe\" \"output.ppm\"");
