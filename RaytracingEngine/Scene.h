@@ -41,6 +41,9 @@ private:
 	std::vector<std::unique_ptr<Light>> lights;
 
 	std::vector<HitInfo> depthMap;
+	std::vector<Vec3> normalMap;
+	std::vector<Vec3> colorMap;
+	std::vector<Vec3> lightMap;
 
 	Camera camera;
 public:
@@ -64,6 +67,9 @@ public:
 	const std::vector<std::unique_ptr<Sphere>>& getSpheres() const { return spheres; }
 	const std::vector<std::unique_ptr<Plane>>& getPlanes() const { return planes; }
 	const std::vector<std::unique_ptr<Light>>& getLights() const { return lights; }
+	const std::vector<Vec3>& getColorMap() const { return colorMap; }
+	const std::vector<Vec3>& getNormalMap() const { return normalMap; }
+	const std::vector<Vec3>& getLightMap() const { return lightMap; }
 
 	const Camera& getCamera() const { return camera; }
 
@@ -137,7 +143,7 @@ public:
 		}
 	}
 
-	std::vector<Vec3> generateColormap() const {
+	void generateColormap() {
 		std::vector<Vec3> colorMap = std::vector<Vec3>(camera.width * camera.height, Vec3(0, 0, 0));
 
 
@@ -149,20 +155,104 @@ public:
 				HitInfo hit = depthMap[pixelIndex];
 				if (hit.isValid())
 				{
-					double depth = 1 - (hit.distance - camera.nearPlaneDistance) / (camera.farPlaneDistance - camera.nearPlaneDistance);
 					Vec3 color;
 					if (hit.type == HitInfo::SPHERE)
 					{
-						color = spheres[hit.index]->getMaterial().color * depth;
+						color = spheres[hit.index]->getMaterial().color;
 					}
 					else if (hit.type == HitInfo::PLANE)
 					{
-						color = planes[hit.index]->getMaterial().color * depth;
+						color = planes[hit.index]->getMaterial().color;
 					}
 					colorMap[pixelIndex] = color;
 				}
 			}
 		}
-		return colorMap;
+		
+		this->colorMap = colorMap;
+	}
+
+	void generateNormalmap() {
+		std::vector<Vec3> normalMap = std::vector<Vec3>(camera.width * camera.height, Vec3(0, 0, 0));
+		for (int y = 0; y < camera.height; y++)
+		{
+			for (int x = 0; x < camera.width; x++) {
+				int pixelIndex = getPixelIndex(x, y);
+				HitInfo hit = depthMap[pixelIndex];
+				if (hit.isValid())
+				{
+					Rayon ray = camera.getRay(x, y);
+					Vec3 pointAtIntersection = ray.pointAtDistance(hit.distance);
+					Vec3 normal;
+					if (hit.type == HitInfo::SPHERE)
+					{
+						normal = spheres[hit.index]->getNormalAt(pointAtIntersection).value().normalize();
+					}
+					else if (hit.type == HitInfo::PLANE)
+					{
+						normal = planes[hit.index]->getNormalAt(pointAtIntersection).value().normalize();
+					}
+					normalMap[pixelIndex] = (normal + Vec3(1, 1, 1)) * 0.5f;
+				}
+			}
+		}
+		
+		this->normalMap = normalMap;
+	}
+
+	void generateLightmap() {
+		std::vector<Vec3> lightMap = std::vector<Vec3>(camera.width * camera.height, Vec3(0, 0, 0));
+		for (int y = 0; y < camera.height; y++)
+		{
+			for (int x = 0; x < camera.width; x++) {
+				int pixelIndex = getPixelIndex(x, y);
+				HitInfo hit = depthMap[pixelIndex];
+				if (hit.isValid())
+				{
+					Rayon ray = camera.getRay(x, y);
+					Vec3 pointAtIntersection = ray.pointAtDistance(hit.distance);
+					Vec3 normal;
+
+					if (hit.type == HitInfo::SPHERE)
+					{
+						normal = spheres[hit.index]->getNormalAt(pointAtIntersection).value().normalize();
+					}
+					else if (hit.type == HitInfo::PLANE)
+					{
+						normal = planes[hit.index]->getNormalAt(pointAtIntersection).value().normalize();
+					}
+
+					Vec3 color = Vec3(0, 0, 0);
+					for (const std::unique_ptr<Light>& light : lights)
+					{
+						Vec3 lightDir = (light->position - pointAtIntersection).normalize();
+
+						double lightDistance = (light->position - pointAtIntersection).length();
+						Rayon shadowRay(pointAtIntersection + normal * 0.001, lightDir);
+
+						std::vector<HitInfo> shadowIntersections = getAllIntersections(shadowRay);
+						HitInfo shadowHit = getClosestIntersection(shadowIntersections);
+
+						bool inShadow = shadowHit.isValid() && shadowHit.distance < lightDistance;
+
+						if (!inShadow) {
+							double diff = std::max(normal.dot(lightDir), 0.0);
+							color = color + light->color * light->intensity * diff;
+						}
+					}
+					lightMap[pixelIndex] = color;
+				}
+			}
+		}
+		
+		this->lightMap = lightMap;
+	}
+
+	std::vector<Vec3> combineMaps() {
+		std::vector<Vec3> combinedMap = std::vector<Vec3>(camera.width * camera.height, Vec3(0, 0, 0));
+		for (int i = 0; i < combinedMap.size(); i++) {
+			combinedMap[i] = colorMap[i] * lightMap[i];
+		}
+		return combinedMap;
 	}
 };

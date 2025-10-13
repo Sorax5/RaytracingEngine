@@ -65,77 +65,16 @@ int main()
 	scene.addPlane(Plane(Vec3(-50, 0, 0), Vec3(-1, 0, 0), Vec3(1, 0, 0)));
 	scene.addPlane(Plane(Vec3(50, 0, 0), Vec3(1, 0, 0), Vec3(0, 0, 1)));
 	scene.addPlane(Plane(Vec3(0, 0, 30), Vec3(0, 0, -1), Vec3(0, 1, 1)));
-	scene.addLight(Light(Vec3(0, 0, 0), Vec3(1, 1, 1), 1));
+	scene.addLight(Light(Vec3(0, 0, -20), Vec3(1, 1, 0), 0.3));
 
 	scene.generateDepthmap();
-	std::vector<Vec3> pixels = scene.generateColormap();
+	scene.generateColormap();
+	scene.generateNormalmap();
+	scene.generateLightmap();
 
-
-	/*for (int y = 0; y < HEIGHT; y++) {
-		for (int x = 0; x < WIDTH; x++) {
-			Rayon ray = camera.getRay(x, y);
-
-			std::vector<double> intersections = getAllIntersections(shapePointers, ray);
-			int nearestShapeIndex = getClosestIntersection(intersections);
-
-			Vec3 color = Vec3(0, 0, 0);
-			if (nearestShapeIndex != -1) {
-				double distance = intersections[nearestShapeIndex];
-				std::unique_ptr<Shape>& const shape = shapePointers[nearestShapeIndex];
-
-				Vec3 albedo = shape->getColor();
-
-
-				Vec3 pointAtIntersection = ray.pointAtDistance(distance);
-				Vec3 normalAtIntersection = shape->getNormalAt(pointAtIntersection).value();
-				color = calculateLighting(ray.pointAtDistance(distance), shape->getNormalAt(ray.pointAtDistance(distance)).value(), lightPointers, shapePointers, albedo);
-			}
-			
-			pixels[y * WIDTH + x] = color;
-		}
-	}*/
-
+	std::vector<Vec3> pixels = scene.combineMaps();
 	std::vector<Color> colorPixels = tonemap(pixels);
-	int numberOfColors = 0;
-	Vec3 moyenneCouleur = Vec3(0, 0, 0);
-	for (const Color& color : colorPixels) {
-		if (color.r != 0 || color.g != 0 || color.b != 0) {
-			numberOfColors++;
-			moyenneCouleur = moyenneCouleur + Vec3(color.r, color.g, color.b);
-		}
-	}
 
-	moyenneCouleur = moyenneCouleur / numberOfColors;
-
-	std::cout << "Number of unique colors: " << numberOfColors << std::endl;
-	std::cout << "Average color: (" << moyenneCouleur.x / numberOfColors << ", " << moyenneCouleur.y / numberOfColors << ", " << moyenneCouleur.z / numberOfColors << ")" << std::endl;
-
-	std::vector<HitInfo> depthMap = scene.getDepthMap();
-	// some statistics on depth map
-	int numberOfHits = 0;
-	for (const HitInfo& hit : depthMap) {
-		if (hit.isValid()) {
-			numberOfHits++;
-		}
-	}
-	std::cout << "Total pixels: " << depthMap.size() << std::endl;
-
-	// number of each shape that was hit
-	std::vector<int> shapeHitCount(scene.getSpheres().size() + scene.getPlanes().size(), 0);
-	for (const HitInfo& hit : depthMap) {
-		if (hit.isValid()) {
-			shapeHitCount[hit.index]++;
-		}
-	}
-	std::cout << "Number of hits: " << numberOfHits << std::endl;
-	for (int i = 0; i < shapeHitCount.size(); i++) {
-		if (i < scene.getSpheres().size()) {
-			std::cout << "Sphere " << i << " was hit " << shapeHitCount[i] << " times." << std::endl;
-		}
-		else {
-			std::cout << "Plane " << (i - scene.getSpheres().size()) << " was hit " << shapeHitCount[i] << " times." << std::endl;
-		}
-	}
 
 	writePPM("output.ppm", colorPixels, WIDTH, HEIGHT);
 	system("start \"\" \"gimp-3.0.exe\" \"output.ppm\"");
