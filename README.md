@@ -2,6 +2,8 @@
 
 Petit moteur de ray‑tracing pédagogique en C++20 — rendu basique de sphères et plans avec ombres, normales, profondeur et éclairage ponctuel.
 
+![Exemple de rendu](last_result.png)]
+
 ## Fonctionnalités
 - Tracé de rayons primaire (depth map).
 - Calcul des normales et colormap.
