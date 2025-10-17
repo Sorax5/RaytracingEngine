@@ -4,13 +4,14 @@
 #include "Shape.h"
 #include "Scene.h"
 #include <vector>
+#include <filesystem>
 
 #include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
 
-#define WIDTH 800
-#define HEIGHT 800
+#define WIDTH 1000
+#define HEIGHT 1000
 
 std::vector<Color> tonemap(const std::vector<Vec3>& pixels)
 {
@@ -28,13 +29,14 @@ std::vector<Color> tonemap(const std::vector<Vec3>& pixels)
 int main()
 {
 	Vec3 origin = Vec3(0, 0, -10);
-	Camera camera = Camera(origin, 300, WIDTH, HEIGHT, 0, 250);
+	Camera camera = Camera(origin, 500, WIDTH, HEIGHT, 0, 250);
 	Scene scene = Scene(camera);
 	/*scene.addSphere(Sphere(10, Vec3(25, 0, 18), Vec3(1, 0, 0)));
 	scene.addSphere(Sphere(15, Vec3(-45, 0, 20), Vec3(0, 1, 0)));
 	scene.addSphere(Sphere(5, Vec3(12, 0, 15), Vec3(0, 0, 1)));*/
 
 	scene.addSphere(Sphere(4, Vec3(8, 0, 10), Vec3(1, 1, 1)));
+	scene.addSphere(Sphere(4, Vec3(-8, 0, 7), Vec3(1, 1, 1)));
 	double distance = 15;
 
 	std::vector<Vec3> normalDirections = {
@@ -58,11 +60,11 @@ int main()
 		Vec3 dir = normalDirections[i];
 		Vec3 col = planeColors[i];
 		scene.addPlane(Plane(dir * -distance, dir, col));
-
 	}
 
 	scene.addLight(Light(Vec3(10, 10, 5), Vec3(0, 1, 1), 50));
 	scene.addLight(Light(Vec3(-10, -10, 5), Vec3(1, 0, 1), 50));
+	scene.addLight(Light(Vec3(0, 0, 0), Vec3(1, 1, 1), 30));
 
 	scene.generateDepthmap();
 	scene.generateColormap();
@@ -74,7 +76,18 @@ int main()
 
 
 	writePPM("output.ppm", colorPixels, WIDTH, HEIGHT);	
-	system("start \"\" \"gimp-3.0.exe\" \"output.ppm\"");
+	//system("start \"\" \"gimp-3.0.exe\" \"output.ppm\"");
+
+	int rc = std::system("ffmpeg -y -f image2 -i \"output.ppm\" \"output.png\"");
+	if (rc == 0 && std::filesystem::exists("output.png")) {
+		std::cout << "Conversion PPM -> PNG réussie : output.png\n";
+		std::system("start \"\" \"output.png\"");
+	}
+	else {
+		std::cerr << "Conversion PPM -> PNG échouée (code: " << rc << "). Vérifier que ffmpeg est installé et dans le PATH.\n";
+	}
+
+	return 0;
 }
 
 // Exécuter le programme : Ctrl+F5 ou menu Déboguer > Exécuter sans débogage
