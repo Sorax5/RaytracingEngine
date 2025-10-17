@@ -128,7 +128,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Image.cpp" />
-    <ClCompile Include="Light.cpp" />
     <ClCompile Include="RaytracingEngine.cpp" />
     <ClCompile Include="Math.cpp" />
   </ItemGroup>

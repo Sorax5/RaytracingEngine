@@ -8,6 +8,7 @@ struct Vec3 {
     double x, y, z;
     Vec3(double x, double y, double z) : x(x), y(y), z(z) {}
 	Vec3() : x(0), y(0), z(0) {}
+	Vec3(double v) : x(v), y(v), z(v) {}
 
     Vec3 operator+(const Vec3& other) const
     {
@@ -54,12 +55,12 @@ struct Vec3 {
         return x * other.x + y * other.y + z * other.z;
     }
 
-    double length()
+    double length() const
     {
         return std::sqrt(this->dot(*this));
     }
 
-    Vec3 normalize()
+    Vec3 normalize() const
     {
         double len = length();
         return { x / len, y / len, z / len };

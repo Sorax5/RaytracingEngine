@@ -15,7 +15,7 @@
 std::vector<Color> tonemap(const std::vector<Vec3>& pixels)
 {
 	std::vector<Color> colorPixels = std::vector<Color>(pixels.size());
-	for (int i = 0; i < pixels.size(); i++) {
+	for (int i = 0; i < static_cast<int>(pixels.size()); i++) {
 		colorPixels[i] = Color(
 			static_cast<uint8_t>(std::min(255.0, std::max(0.0, pixels[i].x * 255.0))),
 			static_cast<uint8_t>(std::min(255.0, std::max(0.0, pixels[i].y * 255.0))),
@@ -25,33 +25,6 @@ std::vector<Color> tonemap(const std::vector<Vec3>& pixels)
 	return colorPixels;
 }
 
-/*Vec3 calculateLighting(const Vec3& point, const Vec3& normal, const std::vector<std::unique_ptr<Light>>& lights, const std::vector<std::unique_ptr<Shape>>& shapes, Vec3 albedo)
-{
-	Vec3 color = Vec3(0,0,0);
-	for (const std::unique_ptr<Light>& light : lights) {
-		Vec3 lightDir = (light->position - point).normalize();
-		double distanceCarrer = (light->position - point).dot(light->position - point);
-
-		bool inShadow = false;
-		Vec3 departure = point + normal * 0.001f;
-		Rayon shadowRay = Rayon(departure, lightDir);
-		for(const auto& shape : shapes) {
-			std::optional<double> shadowIntersection = shape->intersect(shadowRay);
-			if (shadowIntersection.has_value() && shadowIntersection.value() > 0.001f) {
-				inShadow = true;
-				break;
-			}
-		}
-
-		if (!inShadow) {
-			double diff = std::max(normal.dot(lightDir), 0.0);
-			Vec3 contribution = (light->color * light->intensity / distanceCarrer) * diff * albedo;
-			color = color + contribution;
-		}
-	}
-	return color;
-}*/
-
 int main()
 {
 	Vec3 origin = Vec3(0, 0, -50);
@@ -60,23 +33,32 @@ int main()
 	scene.addSphere(Sphere(10, Vec3(25, 0, 18), Vec3(1, 0, 0)));
 	scene.addSphere(Sphere(15, Vec3(-45, 0, 20), Vec3(0, 1, 0)));
 	scene.addSphere(Sphere(5, Vec3(12, 0, 15), Vec3(0, 0, 1)));
-	scene.addPlane(Plane(Vec3(0, 50, 0), Vec3(0, 1, 0), Vec3(1, 1, 1)));
-	scene.addPlane(Plane(Vec3(0, -50, 0), Vec3(0, -1, 0), Vec3(1, 1, 1)));
-	scene.addPlane(Plane(Vec3(-50, 0, 0), Vec3(-1, 0, 0), Vec3(1, 0, 0)));
-	scene.addPlane(Plane(Vec3(50, 0, 0), Vec3(1, 0, 0), Vec3(0, 0, 1)));
-	scene.addPlane(Plane(Vec3(0, 0, 30), Vec3(0, 0, -1), Vec3(0, 1, 1)));
-	scene.addLight(Light(Vec3(0, 0, -20), Vec3(1, 1, 0), 0.3));
+
+	std::vector<Vec3> normalDirections = {
+		Vec3(0, 0,1),
+		Vec3(1, 0, 0),
+		Vec3(-1, 0, 0),
+		Vec3(0, 1, 0),
+		Vec3(0, -1, 0)
+	};
+
+	for (auto& dir : normalDirections) {
+		scene.addPlane(Plane(dir * 50, dir, Vec3((dir.x + 1) * 0.5f, (dir.y + 1) * 0.5f, (dir.z + 1) * 0.5f)));
+	}
+
+	scene.addLight(Light(Vec3(0, 0, 0), Vec3(1, 1, 1), 10));
 
 	scene.generateDepthmap();
 	scene.generateColormap();
 	scene.generateNormalmap();
 	scene.generateLightmap();
 
-	std::vector<Vec3> pixels = scene.combineMaps();
+	// Utiliser la combinaison couleur * lumière pour afficher le rendu final
+	std::vector<Vec3> pixels = scene.getLightMap();
 	std::vector<Color> colorPixels = tonemap(pixels);
 
 
-	writePPM("output.ppm", colorPixels, WIDTH, HEIGHT);
+	writePPM("output.ppm", colorPixels, WIDTH, HEIGHT);	
 	system("start \"\" \"gimp-3.0.exe\" \"output.ppm\"");
 }
 

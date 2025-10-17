@@ -14,6 +14,44 @@ struct Material {
 	Vec3 color;
 };
 
+struct HitInfo {
+	double distance;
+	enum { NONE, SPHERE, PLANE } type;
+	int index;
+	Vec3 hitPoint;
+
+	bool hasHitSomething() const {
+		return type != NONE && index != -1 && distance > 1e-3;
+	}
+
+	bool isCloserThan(const HitInfo& other) const {
+		return distance < other.distance;
+	}
+
+	double normalizedDistance(const Camera& camera) const {
+		return (distance - camera.nearPlaneDistance) / (camera.farPlaneDistance - camera.nearPlaneDistance);
+	}
+
+	static HitInfo getClosestIntersection(const std::vector<HitInfo>& intersections) {
+		HitInfo closestIntersection = { std::numeric_limits<double>::max(), HitInfo::NONE, -1, Vec3() };
+		for (int i = 0; i < intersections.size(); i++)
+		{
+			HitInfo info = intersections[i];
+			if (!info.hasHitSomething())
+			{
+				continue;
+			}
+
+			if (closestIntersection.isCloserThan(info))
+			{
+				continue;
+			}
+			closestIntersection = info;
+		}
+		return closestIntersection;
+	}
+};
+
 class Sphere {
 private:
 	double radius;
@@ -42,8 +80,18 @@ public:
 	}
 
 	std::optional<Vec3> getNormalAt(const Vec3& point) const {
-		Vec3 normal = (point - transform.position);
+		Vec3 normal = (point - transform.position).normalize();
 		return normal;
+	}
+
+	HitInfo getHitInfoAt(const Rayon& ray, int index) const {
+		HitInfo info = { -1, HitInfo::NONE, -1, Vec3() };
+		Vec3 point = intersect(ray).has_value() ? ray.pointAtDistance(intersect(ray).value()) : Vec3();
+		info.distance = intersect(ray).has_value() ? intersect(ray).value() : -1;
+		info.type = HitInfo::SPHERE;
+		info.index = index;
+		info.hitPoint = point;
+		return info;
 	}
 
 	double getRadius() const { return radius; }
@@ -59,7 +107,8 @@ private:
 	Transform transform;
 	Material material;
 public:
-	Plane(const Vec3& pos = Vec3(0, 1, 0), const Vec3& norm = Vec3(0, 0, 0), const Vec3& col = Vec3(1, 1, 1)) : normal(norm) {
+	Plane(const Vec3& pos = Vec3(0, 1, 0), const Vec3& norm = Vec3(0, 1, 0), const Vec3& col = Vec3(1, 1, 1))
+		: normal(norm.normalize()) {
 		transform.position = pos;
 		transform.rotation = Vec3(0, 0, 0);
 		transform.scale = Vec3(1, 1, 1);
@@ -78,12 +127,22 @@ public:
 		return std::nullopt;
 	}
 
-	std::optional<Vec3> getNormalAt(const Vec3& point) const {
-		return normal;
+	std::optional<Vec3> getNormalAt(const Vec3& /*point*/) const {
+		return normal.normalize();
+	}
+
+	HitInfo getHitInfoAt(const Rayon& ray, int index) const {
+		HitInfo info = { -1, HitInfo::NONE, -1, Vec3() };
+		Vec3 point = intersect(ray).has_value() ? ray.pointAtDistance(intersect(ray).value()) : Vec3();
+		info.distance = intersect(ray).has_value() ? intersect(ray).value() : -1;
+		info.type = HitInfo::PLANE;
+		info.index = index;
+		info.hitPoint = point;
+		return info;
 	}
 
 	Vec3 getNormal() const { return normal; }
-	void setNormal(const Vec3& norm) { normal = norm; }
+	void setNormal(const Vec3& norm) { normal = norm.normalize(); }
 	Material getMaterial() const { return material; }
 	Transform getTransform() const { return transform; }
 };
