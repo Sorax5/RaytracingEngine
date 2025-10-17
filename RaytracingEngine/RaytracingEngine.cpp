@@ -1,4 +1,4 @@
-#include "Math.cpp"
+#include "Math.h"
 #include "Image.h"
 #include "Light.h"
 #include "Shape.h"

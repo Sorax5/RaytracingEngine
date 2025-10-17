@@ -10,7 +10,7 @@
 #include <algorithm>
 
 #include <cmath>
-#include "Math.cpp"
+#include "Math.h"
 
 // write vector<Vec3> to a PPM file
 void writePPM(const std::string& filename, const std::vector<Color>& pixels, int width, int height)

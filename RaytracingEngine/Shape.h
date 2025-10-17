@@ -2,7 +2,7 @@
 
 #include <vector>
 #include <optional>
-#include "Math.cpp"
+#include "Math.h"
 
 struct Transform {
 	Vec3 position;
@@ -15,10 +15,10 @@ struct Material {
 };
 
 struct HitInfo {
-	double distance;
-	enum { NONE, SPHERE, PLANE } type;
-	int index;
-	Vec3 hitPoint;
+    double distance;
+    enum { NONE, SPHERE, PLANE } type;
+    std::optional<std::size_t> index;
+    Vec3 hitPoint;
 
 	bool hasHitSomething() const {
 		return type != NONE && index != -1 && distance > 1e-3;

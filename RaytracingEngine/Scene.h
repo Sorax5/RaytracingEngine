@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <memory>
+#include <limits>
 #include "Shape.h"
 #include "Light.h"
 #include <unordered_map>
@@ -15,13 +16,14 @@ private:
 
 	std::vector<HitInfo> depthMap;
 	std::vector<Vec3> normalMap;
-	 std::vector<Vec3> colorMap;
+	std::vector<Vec3> colorMap;
 	std::vector<Vec3> lightMap;
 
 	Camera camera;
 public:
 	Scene(Camera cam) : camera(cam) {
-		this->depthMap = std::vector<HitInfo>(camera.width * camera.height, { -1, HitInfo::NONE, -1 });
+		const std::size_t pixelCount = camera.width * camera.height;
+		this->depthMap = std::vector<HitInfo>(pixelCount, { std::numeric_limits<double>::infinity(), HitInfo::NONE, std::nullopt, Vec3() });
 		this->spheres = std::vector<std::unique_ptr<Sphere>>();
 		this->planes = std::vector<std::unique_ptr<Plane>>();
 		this->lights = std::vector<std::unique_ptr<Light>>();
@@ -49,42 +51,43 @@ public:
 
 	const std::vector<HitInfo>& getDepthMap() const { return depthMap; }
 
-	const std::vector<Vec3>& getDepthMapValues() const {
-		static std::vector<Vec3> depthValues;
-		depthValues.assign(depthMap.size(), Vec3(0, 0, 0));
-
-		for (int i = 0; i < depthMap.size(); i++) {
+	std::vector<Vec3> getDepthMapValues() const {
+		const std::size_t n = depthMap.size();
+		std::vector<Vec3> depthValues(n, Vec3(0, 0, 0));
+		for (std::size_t i = 0; i < n; ++i) {
 			const HitInfo& hit = depthMap[i];
 			if (hit.hasHitSomething()) {
 				double depthValue = hit.normalizedDistance(camera);
-				depthValues[i] = Vec3(depthValue);
+				depthValues[i] = Vec3(depthValue, depthValue, depthValue);
 			}
 		}
 		return depthValues;
 	}
 
-	int getPixelIndex(int x, int y) const {
+	std::size_t getPixelIndex(std::size_t x, std::size_t y) const {
 		return y * camera.width + x;
 	}
 
 	std::optional<Vec3> getNormalOfHit(const HitInfo& hit) const {
+		if (!hit.index.has_value()) return std::nullopt;
 		switch (hit.type) {
 			case HitInfo::SPHERE:
-				return spheres[hit.index]->getNormalAt(hit.hitPoint);
+				return spheres[hit.index.value()]->getNormalAt(hit.hitPoint);
 			case HitInfo::PLANE:
-				return planes[hit.index]->getNormalAt();
+				return planes[hit.index.value()]->getNormalAt();
 			default:
 				return std::nullopt;
 		}
 	}
 
 	Vec3 getColorOfHit(const HitInfo& hit) const {
+		if (!hit.index.has_value()) return Vec3(0,0,0);
 		switch (hit.type)
 		{
 			case HitInfo::SPHERE:
-				return spheres[hit.index]->getMaterial().color;
+				return spheres[hit.index.value()]->getMaterial().color;
 			case HitInfo::PLANE:
-				return planes[hit.index]->getMaterial().color;
+				return planes[hit.index.value()]->getMaterial().color;
 			default:
 				return Vec3(0, 0, 0);
 		}
@@ -92,15 +95,15 @@ public:
 
 	std::vector<HitInfo> getIntersections(const Rayon& ray) const
 	{
-		int size = spheres.size() + planes.size();
-		std::vector<HitInfo> intersections = std::vector<HitInfo>(size, { -1, HitInfo::NONE, -1, Vec3()});
+		const std::size_t size = spheres.size() + planes.size();
+		std::vector<HitInfo> intersections(size, { std::numeric_limits<double>::infinity(), HitInfo::NONE, std::nullopt, Vec3() });
 
-		for (int sphereIndex = 0; sphereIndex < spheres.size(); sphereIndex++) {
+		for (std::size_t sphereIndex = 0; sphereIndex < spheres.size(); ++sphereIndex) {
 			const std::unique_ptr<Sphere>& shape = spheres[sphereIndex];
 			intersections[sphereIndex] = shape->getHitInfoAt(ray, sphereIndex);
 		}
 
-		for (int planeIndex = 0; planeIndex < planes.size(); planeIndex++)
+		for (std::size_t planeIndex = 0; planeIndex < planes.size(); ++planeIndex)
 		{
 			const std::unique_ptr<Plane>& shape = planes[planeIndex];
 			intersections[spheres.size() + planeIndex] = shape->getHitInfoAt(ray, planeIndex);
@@ -110,12 +113,12 @@ public:
 	}
 
 	void generateDepthmap() {
-		for (int y = 0; y < camera.height; y++)
+		for (std::size_t y = 0; y < camera.height; ++y)
 		{
-			for (int x = 0; x < camera.width; x++)
+			for (std::size_t x = 0; x < camera.width; ++x)
 			{
-				const int idx = getPixelIndex(x, y);
-				depthMap[idx] = { -1, HitInfo::NONE, -1, Vec3() };
+				const std::size_t idx = getPixelIndex(x, y);
+				depthMap[idx] = { std::numeric_limits<double>::infinity(), HitInfo::NONE, std::nullopt, Vec3() };
 
 				Rayon ray = camera.getRay(x, y);
 				std::vector<HitInfo> intersections = getIntersections(ray);
@@ -130,50 +133,53 @@ public:
 	}
 
 	void generateColormap() {
-		std::vector<Vec3> colorMap = std::vector<Vec3>(camera.width * camera.height, Vec3(1, 0, 1));
+		const std::size_t pixelCount = camera.width * camera.height;
+		std::vector<Vec3> colorMapLocal(pixelCount, Vec3(1, 0, 1));
 
-		for (int y = 0; y < camera.height; y++)
+		for (std::size_t y = 0; y < camera.height; ++y)
 		{
-			for (int x = 0; x < camera.width; x++) {
-				int pixelIndex = getPixelIndex(x, y);
+			for (std::size_t x = 0; x < camera.width; ++x) {
+				std::size_t pixelIndex = getPixelIndex(x, y);
 
 				HitInfo hit = depthMap[pixelIndex];
 				if (hit.hasHitSomething())
 				{
-					colorMap[pixelIndex] = getColorOfHit(hit);
+					colorMapLocal[pixelIndex] = getColorOfHit(hit);
 				}
 			}
 		}
 		
-		this->colorMap = colorMap;
+		this->colorMap = std::move(colorMapLocal);
 	}
 
 	void generateNormalmap() {
-		std::vector<Vec3> normalMap = std::vector<Vec3>(camera.width * camera.height, Vec3(0, 0, 0));
-		for (int y = 0; y < camera.height; y++)
+		const std::size_t pixelCount = camera.width * camera.height;
+		std::vector<Vec3> normalMapLocal(pixelCount, Vec3(0, 0, 0));
+		for (std::size_t y = 0; y < camera.height; ++y)
 		{
-			for (int x = 0; x < camera.width; x++) {
-				int pixelIndex = getPixelIndex(x, y);
+			for (std::size_t x = 0; x < camera.width; ++x) {
+				std::size_t pixelIndex = getPixelIndex(x, y);
 				HitInfo hit = depthMap[pixelIndex];
 				if(!hit.hasHitSomething()) {
 					continue;
 				}
 
 				Vec3 normal = getNormalOfHit(hit).value().normalize();
-				normalMap[pixelIndex] = normal;
+				normalMapLocal[pixelIndex] = normal;
 			}
 		}
 		
-		this->normalMap = normalMap;
+		this->normalMap = std::move(normalMapLocal);
 	}
 
 	void generateLightmap() {
-		std::vector<Vec3> lightMap(camera.width * camera.height, Vec3(0, 0, 0));
+		const std::size_t pixelCount = camera.width * camera.height;
+		std::vector<Vec3> lightMapLocal(pixelCount, Vec3(0, 0, 0));
 
 		const double bias = 1e-3;
-		for (int y = 0; y < camera.height; y++) {
-			for (int x = 0; x < camera.width; x++) {
-				int pixelIndex = getPixelIndex(x, y);
+		for (std::size_t y = 0; y < camera.height; ++y) {
+			for (std::size_t x = 0; x < camera.width; ++x) {
+				std::size_t pixelIndex = getPixelIndex(x, y);
 				const HitInfo& pixelDepth = depthMap[pixelIndex];
 				if (!pixelDepth.hasHitSomething()) {
 					continue;
@@ -187,12 +193,12 @@ public:
 
 				Vec3 incoming = Vec3(0, 0, 0);
 				for (const std::unique_ptr<Light>& light : lights) {
-					Vec3 toLight = light->position - pixelDepth.hitPoint;
-					double dist = toLight.length();
+					double dist = light->distanceTo(pixelDepth.hitPoint);
 					if (dist <= 1e-6) continue;
-					Vec3 Ldir = toLight.normalize();
 
-					Rayon shadowRay(pixelDepth.hitPoint + Ldir * bias, Ldir);
+					Vec3 Ldir = light->dirTo(pixelDepth.hitPoint);
+					Rayon shadowRay = light->shadowRayFrom(pixelDepth.hitPoint, bias);
+
 					std::vector<HitInfo> shadowIntersections = getIntersections(shadowRay);
 					HitInfo shadowHit = HitInfo::getClosestIntersection(shadowIntersections);
 
@@ -203,23 +209,20 @@ public:
 					double NdotL = std::max(0.0, normal.dot(Ldir));
 					if (NdotL <= 0.0) continue;
 
-					double attenuation = 1.0 / (dist * dist);
-					Vec3 L_emit = light->color * light->intensity;
-					Vec3 contribution = L_emit * (attenuation * NdotL);
-
-					incoming += contribution;
+					incoming += light->contributionFrom(dist, NdotL);
 				}
 
-				lightMap[pixelIndex] = incoming;
+				lightMapLocal[pixelIndex] = incoming;
 			}
 		}
 
-		this->lightMap = lightMap;
+		this->lightMap = std::move(lightMapLocal);
 	}
 
 	std::vector<Vec3> combineMaps() {
-		std::vector<Vec3> combinedMap = std::vector<Vec3>(camera.width * camera.height, Vec3(0, 0, 0));
-		for (int i = 0; i < combinedMap.size(); i++) {
+		const std::size_t pixelCount = camera.width * camera.height;
+		std::vector<Vec3> combinedMap(pixelCount, Vec3(0, 0, 0));
+		for (std::size_t i = 0; i < combinedMap.size(); ++i) {
 			combinedMap[i] = colorMap[i] * lightMap[i];
 		}
 		return combinedMap;
