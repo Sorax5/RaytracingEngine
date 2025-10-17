@@ -16,7 +16,7 @@
 std::vector<Color> tonemap(const std::vector<Vec3>& pixels)
 {
 	std::vector<Color> colorPixels = std::vector<Color>(pixels.size());
-	for (int i = 0; i < static_cast<int>(pixels.size()); i++) {
+	for (size_t i = 0; i < pixels.size(); i++) {
 		colorPixels[i] = Color(
 			static_cast<uint8_t>(std::min(255.0, std::max(0.0, pixels[i].x * 255.0))),
 			static_cast<uint8_t>(std::min(255.0, std::max(0.0, pixels[i].y * 255.0))),
@@ -31,9 +31,6 @@ int main()
 	Vec3 origin = Vec3(0, 0, -10);
 	Camera camera = Camera(origin, 500, WIDTH, HEIGHT, 0, 250);
 	Scene scene = Scene(camera);
-	/*scene.addSphere(Sphere(10, Vec3(25, 0, 18), Vec3(1, 0, 0)));
-	scene.addSphere(Sphere(15, Vec3(-45, 0, 20), Vec3(0, 1, 0)));
-	scene.addSphere(Sphere(5, Vec3(12, 0, 15), Vec3(0, 0, 1)));*/
 
 	scene.addSphere(Sphere(4, Vec3(8, 0, 10), Vec3(1, 1, 1)));
 	scene.addSphere(Sphere(4, Vec3(-8, 0, 7), Vec3(1, 1, 1)));
