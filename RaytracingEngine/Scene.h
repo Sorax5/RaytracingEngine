@@ -15,7 +15,7 @@ private:
 
 	std::vector<HitInfo> depthMap;
 	std::vector<Vec3> normalMap;
-	std::vector<Vec3> colorMap;
+	 std::vector<Vec3> colorMap;
 	std::vector<Vec3> lightMap;
 
 	Camera camera;
@@ -72,7 +72,7 @@ public:
 			case HitInfo::SPHERE:
 				return spheres[hit.index]->getNormalAt(hit.hitPoint);
 			case HitInfo::PLANE:
-				return planes[hit.index]->getNormalAt(hit.hitPoint);
+				return planes[hit.index]->getNormalAt();
 			default:
 				return std::nullopt;
 		}
@@ -170,56 +170,47 @@ public:
 	void generateLightmap() {
 		std::vector<Vec3> lightMap(camera.width * camera.height, Vec3(0, 0, 0));
 
-		const double bias = 1e-3;           // décalage pour éviter auto-ombre
-		const double ambientFactor = 0.2;  // ← ajuste pour ajouter lumière ambiante
-
+		const double bias = 1e-3;
 		for (int y = 0; y < camera.height; y++) {
 			for (int x = 0; x < camera.width; x++) {
 				int pixelIndex = getPixelIndex(x, y);
 				const HitInfo& pixelDepth = depthMap[pixelIndex];
 				if (!pixelDepth.hasHitSomething()) {
-					lightMap[pixelIndex] = Vec3(0, 0, 0);
 					continue;
 				}
 
-				// récupère la normale géométrique et la normalise
-				HitInfo hitCopy = pixelDepth;
-				std::optional<Vec3> optNormal = getNormalOfHit(hitCopy);
+				auto optNormal = getNormalOfHit(pixelDepth);
 				if (!optNormal.has_value()) {
-					lightMap[pixelIndex] = Vec3(0, 0, 0);
 					continue;
 				}
 				Vec3 normal = optNormal.value().normalize();
 
-				// lighting commence par une composante ambiante
-				Vec3 lighting = Vec3(ambientFactor, ambientFactor, ambientFactor);
-
+				Vec3 incoming = Vec3(0, 0, 0);
 				for (const std::unique_ptr<Light>& light : lights) {
-					Vec3 toLight = (light->position - pixelDepth.hitPoint);
-					double lightDistance = toLight.length();
-					Vec3 lightDir = (lightDistance > 0.0) ? (toLight / lightDistance) : Vec3(0, 0, 0);
+					Vec3 toLight = light->position - pixelDepth.hitPoint;
+					double dist = toLight.length();
+					if (dist <= 1e-6) continue;
+					Vec3 Ldir = toLight.normalize();
 
-					Rayon shadowRay(pixelDepth.hitPoint + normal * bias, lightDir);
+					Rayon shadowRay(pixelDepth.hitPoint + Ldir * bias, Ldir);
 					std::vector<HitInfo> shadowIntersections = getIntersections(shadowRay);
 					HitInfo shadowHit = HitInfo::getClosestIntersection(shadowIntersections);
 
-					bool inShadow = shadowHit.hasHitSomething() &&
-						shadowHit.distance > bias &&
-						shadowHit.distance < (lightDistance - bias);
-
-					if (inShadow) {
+					if (shadowHit.hasHitSomething() && shadowHit.distance < (dist - bias)) {
 						continue;
 					}
 
-					double diff = std::max(normal.dot(lightDir), 0.0);
+					double NdotL = std::max(0.0, normal.dot(Ldir));
+					if (NdotL <= 0.0) continue;
 
-					// Atténuation simple (tu peux ajuster les coefficients)
-					double attenuation = 1.0 / (1.0 + 0.1 * lightDistance + 0.01 * lightDistance * lightDistance);
+					double attenuation = 1.0 / (dist * dist);
+					Vec3 L_emit = light->color * light->intensity;
+					Vec3 contribution = L_emit * (attenuation * NdotL);
 
-					lighting = lighting + light->color * (light->intensity * diff * attenuation);
+					incoming += contribution;
 				}
 
-				lightMap[pixelIndex] = lighting;
+				lightMap[pixelIndex] = incoming;
 			}
 		}
 

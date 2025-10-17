@@ -127,8 +127,8 @@ public:
 		return std::nullopt;
 	}
 
-	std::optional<Vec3> getNormalAt(const Vec3& /*point*/) const {
-		return normal.normalize();
+	std::optional<Vec3> getNormalAt() const {
+		return normal;
 	}
 
 	HitInfo getHitInfoAt(const Rayon& ray, int index) const {

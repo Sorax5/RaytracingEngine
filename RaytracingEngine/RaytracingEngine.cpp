@@ -27,26 +27,45 @@ std::vector<Color> tonemap(const std::vector<Vec3>& pixels)
 
 int main()
 {
-	Vec3 origin = Vec3(0, 0, -50);
-	Camera camera = Camera(origin, 300, WIDTH, HEIGHT, 0, 150);
+	Vec3 origin = Vec3(0, 0, -10);
+	Camera camera = Camera(origin, 300, WIDTH, HEIGHT, 0, 250);
 	Scene scene = Scene(camera);
-	scene.addSphere(Sphere(10, Vec3(25, 0, 18), Vec3(1, 0, 0)));
+	/*scene.addSphere(Sphere(10, Vec3(25, 0, 18), Vec3(1, 0, 0)));
 	scene.addSphere(Sphere(15, Vec3(-45, 0, 20), Vec3(0, 1, 0)));
-	scene.addSphere(Sphere(5, Vec3(12, 0, 15), Vec3(0, 0, 1)));
+	scene.addSphere(Sphere(5, Vec3(12, 0, 15), Vec3(0, 0, 1)));*/
+
+	scene.addSphere(Sphere(4, Vec3(8, 0, 10), Vec3(1, 1, 1)));
+
+	// ajoute des sphères avec un truc mathématique
+
+
+	double distance = 15;
 
 	std::vector<Vec3> normalDirections = {
-		Vec3(0, 0,1),
+		Vec3(0, 0, -1),
 		Vec3(1, 0, 0),
 		Vec3(-1, 0, 0),
 		Vec3(0, 1, 0),
 		Vec3(0, -1, 0)
 	};
 
-	for (auto& dir : normalDirections) {
-		scene.addPlane(Plane(dir * 50, dir, Vec3((dir.x + 1) * 0.5f, (dir.y + 1) * 0.5f, (dir.z + 1) * 0.5f)));
+	std::vector<Vec3> planeColors = {
+		Vec3(1, 1, 1),
+		Vec3(0, 1, 0),
+		Vec3(0, 0, 1),
+		Vec3(1, 1, 1),
+		Vec3(1, 1, 1)
+	};
+
+	for (int i = 0; i < normalDirections.size(); i++)
+	{
+		Vec3 dir = normalDirections[i];
+		Vec3 col = planeColors[i];
+		scene.addPlane(Plane(dir * -distance, dir, col));
+
 	}
 
-	scene.addLight(Light(Vec3(0, 0, 0), Vec3(1, 1, 1), 10));
+	scene.addLight(Light(Vec3(0, 0, 0), Vec3(1, 1, 1), 100));
 
 	scene.generateDepthmap();
 	scene.generateColormap();
@@ -54,7 +73,7 @@ int main()
 	scene.generateLightmap();
 
 	// Utiliser la combinaison couleur * lumière pour afficher le rendu final
-	std::vector<Vec3> pixels = scene.getLightMap();
+	std::vector<Vec3> pixels = scene.combineMaps();
 	std::vector<Color> colorPixels = tonemap(pixels);
 
 
