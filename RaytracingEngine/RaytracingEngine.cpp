@@ -35,10 +35,6 @@ int main()
 	scene.addSphere(Sphere(5, Vec3(12, 0, 15), Vec3(0, 0, 1)));*/
 
 	scene.addSphere(Sphere(4, Vec3(8, 0, 10), Vec3(1, 1, 1)));
-
-	// ajoute des sphères avec un truc mathématique
-
-
 	double distance = 15;
 
 	std::vector<Vec3> normalDirections = {
@@ -65,7 +61,7 @@ int main()
 
 	}
 
-	scene.addLight(Light(Vec3(0, 0, 0), Vec3(1, 1, 1), 100));
+	scene.addLight(Light(Vec3(5, 5, 5), Vec3(1, 1, 1), 100));
 
 	scene.generateDepthmap();
 	scene.generateColormap();
