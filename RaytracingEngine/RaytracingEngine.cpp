@@ -61,14 +61,14 @@ int main()
 
 	}
 
-	scene.addLight(Light(Vec3(5, 5, 5), Vec3(1, 1, 1), 100));
+	scene.addLight(Light(Vec3(10, 10, 5), Vec3(0, 1, 1), 50));
+	scene.addLight(Light(Vec3(-10, -10, 5), Vec3(1, 0, 1), 50));
 
 	scene.generateDepthmap();
 	scene.generateColormap();
 	scene.generateNormalmap();
 	scene.generateLightmap();
 
-	// Utiliser la combinaison couleur * lumière pour afficher le rendu final
 	std::vector<Vec3> pixels = scene.combineMaps();
 	std::vector<Color> colorPixels = tonemap(pixels);
 
