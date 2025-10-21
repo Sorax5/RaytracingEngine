@@ -121,7 +121,6 @@ std::vector<Color> tonemap(const std::vector<Vec3>& pixels)
 
 std::vector<std::vector<Color>> tonemapAll(const std::vector<Vec3> pixels)
 {
-	// do each tonemapping method and store the results in a vector of vector<Color>
 	std::vector<std::vector<Color>> allTonemapped;
 	std::vector<Color> simpleMapped = std::vector<Color>(pixels.size());
 	std::vector<Color> reinhardSimpleMapped = std::vector<Color>(pixels.size());
@@ -141,7 +140,7 @@ std::vector<std::vector<Color>> tonemapAll(const std::vector<Vec3> pixels)
 		reinhardExtendedMapped[i] = toColor(reinhardExtendedColor);
 		Vec3 reinhardExtendedLuminanceColor = reinhardExtendedLuminance(current, 5.0);
 		reinhardExtendedLuminanceMapped[i] = toColor(reinhardExtendedLuminanceColor);
-		Vec3 reinhardJodieColor = reinhardJodie(current, 0.18);
+		Vec3 reinhardJodieColor = reinhardJodie(current);
 		reinhardJodieMapped[i] = toColor(reinhardJodieColor);
 		Vec3 uncharted2Color = uncharted2(current);
 		uncharted2Mapped[i] = toColor(uncharted2Color);
@@ -193,9 +192,10 @@ int main()
 		scene.addPlane(Plane(dir * -distance, dir, col));
 	}
 
-	scene.addLight(Light(Vec3(10, 10, 5), Vec3(0, 1, 1), 50));
-	scene.addLight(Light(Vec3(-10, -10, 5), Vec3(1, 0, 1), 50));
-	scene.addLight(Light(Vec3(0, 0, 0), Vec3(1, 1, 1), 30));
+	//scene.addLight(Light(Vec3(10, 10, 5), Vec3(0, 1, 1), 50));
+	//scene.addLight(Light(Vec3(-10, -10, 5), Vec3(1, 0, 1), 50));
+	scene.addLight(Light(Vec3(0, 0, 0), Vec3(1, 1, 1), 100));
+	scene.addLight(Light(Vec3(0, 0, 8), Vec3(1, 1, 1), 75));
 
 	scene.generateDepthmap();
 	scene.generateColormap();
@@ -205,8 +205,6 @@ int main()
 
 	std::vector<Vec3> pixels = scene.combineMaps();
 	std::vector<Color> colorPixels = tonemap(pixels);
-
-	std::string filename = "aces";
 
 	std::vector<std::string> tonemapNames = {
 		"simple",

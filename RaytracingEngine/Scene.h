@@ -18,6 +18,7 @@ private:
 	std::vector<Vec3> normalMap;
 	std::vector<Vec3> colorMap;
 	std::vector<Vec3> lightMap;
+	std::vector<Vec3> specularMap;
 
 	Camera camera;
 public:
@@ -46,6 +47,7 @@ public:
 	const std::vector<Vec3>& getColorMap() const { return colorMap; }
 	const std::vector<Vec3>& getNormalMap() const { return normalMap; }
 	const std::vector<Vec3>& getLightMap() const { return lightMap; }
+	const std::vector<Vec3>& getSpecularMap() const { return specularMap; }
 
 	const Camera& getCamera() const { return camera; }
 
@@ -90,6 +92,19 @@ public:
 				return planes[hit.index.value()]->getMaterial().color;
 			default:
 				return Vec3(0, 0, 0);
+		}
+	}
+
+	double getShininessOfHit(const HitInfo& hit) const {
+		if (!hit.index.has_value()) return 32.0;
+		switch (hit.type)
+		{
+			case HitType::SPHERE:
+				return spheres[hit.index.value()]->getMaterial().shininess;
+			case HitType::PLANE:
+				return planes[hit.index.value()]->getMaterial().shininess;
+			default:
+				return 32.0;
 		}
 	}
 
@@ -175,6 +190,7 @@ public:
 	void generateLightmap() {
 		const std::size_t pixelCount = camera.width * camera.height;
 		std::vector<Vec3> lightMapLocal(pixelCount, Vec3(0, 0, 0));
+		std::vector<Vec3> specularMapLocal(pixelCount, Vec3(0, 0, 0));
 
 		const double bias = 1e-3;
 		for (std::size_t y = 0; y < camera.height; ++y) {
@@ -191,6 +207,10 @@ public:
 				}
 				Vec3 normal = optNormal.value().normalize();
 
+				Vec3 viewDir = (camera.position - pixelDepth.hitPoint).normalize();
+				double shininess = getShininessOfHit(pixelDepth);
+
+				Vec3 specularAccum = Vec3(0, 0, 0);
 				Vec3 incoming = Vec3(0, 0, 0);
 				for (const std::unique_ptr<Light>& light : lights) {
 					double dist = light->distanceTo(pixelDepth.hitPoint);
@@ -214,20 +234,30 @@ public:
 					}
 
 					incoming += light->contributionFrom(dist, NdotL);
+
+					Vec3 half = (Ldir + viewDir).normalize();
+					double NdotH = std::max(0.0, normal.dot(half));
+					double specFactor = std::pow(NdotH, shininess);
+
+					Vec3 specContribution = light->emitted() * (1.0 / (dist * dist)) * specFactor;
+
+					specularAccum += specContribution;
 				}
 
 				lightMapLocal[pixelIndex] = incoming;
+				specularMapLocal[pixelIndex] = specularAccum;
 			}
 		}
 
 		this->lightMap = std::move(lightMapLocal);
+		this->specularMap = std::move(specularMapLocal);
 	}
 
 	std::vector<Vec3> combineMaps() {
 		const std::size_t pixelCount = camera.width * camera.height;
 		std::vector<Vec3> combinedMap(pixelCount, Vec3(0, 0, 0));
 		for (std::size_t i = 0; i < combinedMap.size(); ++i) {
-			combinedMap[i] = colorMap[i] * lightMap[i];
+			combinedMap[i] = colorMap[i] * lightMap[i] + specularMap[i];
 		}
 		return combinedMap;
 	}

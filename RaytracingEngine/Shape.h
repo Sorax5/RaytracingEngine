@@ -12,6 +12,13 @@ struct Transform {
 
 struct Material {
 	Vec3 color;
+	double shininess = 32.0;
+
+	Vec3 calculateSpecular(const Vec3& lightDir, const Vec3& viewDir, const Vec3& normal) const {
+		Vec3 reflectDir = (lightDir - normal * 2.0 * lightDir.dot(normal)).normalize();
+		double spec = std::pow(std::max(viewDir.dot(reflectDir), 0.0), shininess);
+		return Vec3(1, 1, 1) * spec;
+	}
 };
 
 enum class HitType: unsigned char {
