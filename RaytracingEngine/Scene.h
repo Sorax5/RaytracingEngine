@@ -23,7 +23,7 @@ private:
 public:
 	Scene(Camera cam) : camera(cam) {
 		const std::size_t pixelCount = camera.width * camera.height;
-		this->depthMap = std::vector<HitInfo>(pixelCount, { std::numeric_limits<double>::infinity(), HitInfo::NONE, std::nullopt, Vec3() });
+		this->depthMap = std::vector<HitInfo>(pixelCount, { std::numeric_limits<double>::infinity(), HitType::NONE, std::nullopt, Vec3() });
 		this->spheres = std::vector<std::unique_ptr<Sphere>>();
 		this->planes = std::vector<std::unique_ptr<Plane>>();
 		this->lights = std::vector<std::unique_ptr<Light>>();
@@ -71,9 +71,9 @@ public:
 	std::optional<Vec3> getNormalOfHit(const HitInfo& hit) const {
 		if (!hit.index.has_value()) return std::nullopt;
 		switch (hit.type) {
-			case HitInfo::SPHERE:
+			case HitType::SPHERE:
 				return spheres[hit.index.value()]->getNormalAt(hit.hitPoint);
-			case HitInfo::PLANE:
+			case HitType::PLANE:
 				return planes[hit.index.value()]->getNormalAt();
 			default:
 				return std::nullopt;
@@ -84,9 +84,9 @@ public:
 		if (!hit.index.has_value()) return Vec3(0,0,0);
 		switch (hit.type)
 		{
-			case HitInfo::SPHERE:
+			case HitType::SPHERE:
 				return spheres[hit.index.value()]->getMaterial().color;
-			case HitInfo::PLANE:
+			case HitType::PLANE:
 				return planes[hit.index.value()]->getMaterial().color;
 			default:
 				return Vec3(0, 0, 0);
@@ -96,7 +96,7 @@ public:
 	std::vector<HitInfo> getIntersections(const Rayon& ray) const
 	{
 		const std::size_t size = spheres.size() + planes.size();
-		std::vector<HitInfo> intersections(size, { std::numeric_limits<double>::infinity(), HitInfo::NONE, std::nullopt, Vec3() });
+		std::vector<HitInfo> intersections(size, { std::numeric_limits<double>::infinity(), HitType::NONE, std::nullopt, Vec3() });
 
 		for (std::size_t sphereIndex = 0; sphereIndex < spheres.size(); ++sphereIndex) {
 			const std::unique_ptr<Sphere>& shape = spheres[sphereIndex];
@@ -118,7 +118,7 @@ public:
 			for (std::size_t x = 0; x < camera.width; ++x)
 			{
 				const std::size_t idx = getPixelIndex(x, y);
-				depthMap[idx] = { std::numeric_limits<double>::infinity(), HitInfo::NONE, std::nullopt, Vec3() };
+				depthMap[idx] = { std::numeric_limits<double>::infinity(), HitType::NONE, std::nullopt, Vec3() };
 
 				Rayon ray = camera.getRay(x, y);
 				std::vector<HitInfo> intersections = getIntersections(ray);
@@ -194,7 +194,9 @@ public:
 				Vec3 incoming = Vec3(0, 0, 0);
 				for (const std::unique_ptr<Light>& light : lights) {
 					double dist = light->distanceTo(pixelDepth.hitPoint);
-					if (dist <= 1e-6) continue;
+					if (dist <= 1e-6) {
+						continue;
+					}
 
 					Vec3 Ldir = light->dirTo(pixelDepth.hitPoint);
 					Rayon shadowRay = light->shadowRayFrom(pixelDepth.hitPoint, bias);
@@ -207,7 +209,9 @@ public:
 					}
 
 					double NdotL = std::max(0.0, normal.dot(Ldir));
-					if (NdotL <= 0.0) continue;
+					if (NdotL <= 0.0) {
+						continue;
+					}
 
 					incoming += light->contributionFrom(dist, NdotL);
 				}

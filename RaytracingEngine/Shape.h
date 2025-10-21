@@ -14,14 +14,20 @@ struct Material {
 	Vec3 color;
 };
 
+enum class HitType: unsigned char {
+	NONE,
+	SPHERE,
+	PLANE
+};
+
 struct HitInfo {
     double distance;
-    enum { NONE, SPHERE, PLANE } type;
+	HitType type;
     std::optional<std::size_t> index;
     Vec3 hitPoint;
 
 	bool hasHitSomething() const {
-		return type != NONE && index != -1 && distance > 1e-3;
+		return type != HitType::NONE && index != -1 && distance > 1e-4;
 	}
 
 	bool isCloserThan(const HitInfo& other) const {
@@ -33,7 +39,7 @@ struct HitInfo {
 	}
 
 	static HitInfo getClosestIntersection(const std::vector<HitInfo>& intersections) {
-		HitInfo closestIntersection = { std::numeric_limits<double>::max(), HitInfo::NONE, -1, Vec3() };
+		HitInfo closestIntersection = { std::numeric_limits<double>::max(), HitType::NONE, -1, Vec3() };
 		for (int i = 0; i < intersections.size(); i++)
 		{
 			HitInfo info = intersections[i];
@@ -85,10 +91,10 @@ public:
 	}
 
 	HitInfo getHitInfoAt(const Rayon& ray, int index) const {
-		HitInfo info = { -1, HitInfo::NONE, -1, Vec3() };
+		HitInfo info = { -1, HitType::NONE, -1, Vec3() };
 		Vec3 point = intersect(ray).has_value() ? ray.pointAtDistance(intersect(ray).value()) : Vec3();
 		info.distance = intersect(ray).has_value() ? intersect(ray).value() : -1;
-		info.type = HitInfo::SPHERE;
+		info.type = HitType::SPHERE;
 		info.index = index;
 		info.hitPoint = point;
 		return info;
@@ -132,10 +138,10 @@ public:
 	}
 
 	HitInfo getHitInfoAt(const Rayon& ray, int index) const {
-		HitInfo info = { -1, HitInfo::NONE, -1, Vec3() };
+		HitInfo info = { -1, HitType::NONE, -1, Vec3() };
 		Vec3 point = intersect(ray).has_value() ? ray.pointAtDistance(intersect(ray).value()) : Vec3();
 		info.distance = intersect(ray).has_value() ? intersect(ray).value() : -1;
-		info.type = HitInfo::PLANE;
+		info.type = HitType::PLANE;
 		info.index = index;
 		info.hitPoint = point;
 		return info;

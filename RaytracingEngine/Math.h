@@ -11,12 +11,17 @@ struct Vec3 {
     Vec3(double v) : x(v), y(v), z(v) {}
 
     Vec3 operator+(const Vec3& o) const noexcept { return { x + o.x, y + o.y, z + o.z }; }
+	Vec3 operator+(const double s) const noexcept { return { x + s, y + s, z + s }; }
     Vec3 operator-(const Vec3& o) const noexcept { return { x - o.x, y - o.y, z - o.z }; }
+	Vec3 operator-(double s) const noexcept { return { x - s, y - s, z - s }; }
     Vec3 operator*(double s) const noexcept { return { x * s, y * s, z * s }; }
     Vec3 operator*(const Vec3& o) const noexcept { return { x * o.x, y * o.y, z * o.z }; }
+    Vec3 operator/(const Vec3& o) const noexcept { return { x / o.x, y / o.y, z / o.z }; }
     Vec3 operator/(double s) const noexcept { return { x / s, y / s, z / s }; }
     Vec3& operator+=(const Vec3& o) noexcept { x += o.x; y += o.y; z += o.z; return *this; }
     Vec3 operator-() const noexcept { return { -x, -y, -z }; }
+    Vec3& operator/=(double s) noexcept { x /= s; y /= s; z /= s; return *this; }
+	Vec3& operator*=(double s) noexcept { x *= s; y *= s; z *= s; return *this; }
 
     double dot(const Vec3& o) const noexcept { return x * o.x + y * o.y + z * o.z; }
     Vec3 cross(const Vec3& o) const noexcept { return { y * o.z - z * o.y, z * o.x - x * o.z, x * o.y - y * o.x }; }
@@ -36,6 +41,13 @@ struct Vec3 {
         default: throw std::out_of_range("Vec3 index out of range");
         }
     }
+
+    Vec3& lerp(const Vec3& target, double t) noexcept {
+        x = x + (target.x - x) * t;
+        y = y + (target.y - y) * t;
+        z = z + (target.z - z) * t;
+        return *this;
+	}
 
     friend Vec3 operator*(double s, const Vec3& v) noexcept { return v * s; }
 };
@@ -72,3 +84,4 @@ struct Camera {
         return Rayon(position, dir);
     }
 };
+

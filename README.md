@@ -2,7 +2,26 @@
 
 Petit moteur de ray‑tracing pédagogique en C++20 — rendu basique de sphères et plans avec ombres, normales, profondeur et éclairage ponctuel.
 
-![Exemple de rendu](RaytracingEngine/output.png)
+### Tonemap simple
+![Simple](RaytracingEngine/simple.png)
+
+### Tonemap Reinhard
+![Reinhard](RaytracingEngine/reinhard_simple.png)
+
+### Tonemap Reinhard extendu
+![Reinhard Extended](RaytracingEngine/reinhard_extended.png)
+
+### Tonemap Reinhard extendu avec luminance
+![Reinhard Extended Luminance](RaytracingEngine/reinhard_extended_luminance.png)
+
+### Tonemap Reinhard Jodie
+![Reinhard Jodie](RaytracingEngine/reinhard_jodie.png)
+
+### Tonemap Uncharted
+![Uncharted](RaytracingEngine/uncharted2.png)
+
+### Tonemap ACES
+![ACES](RaytracingEngine/aces.png)
 
 ## Fonctionnalités
 - Tracé de rayons primaire (depth map).

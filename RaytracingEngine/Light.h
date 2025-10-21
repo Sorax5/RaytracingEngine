@@ -26,8 +26,12 @@ struct Light {
 	Vec3 dirTo(const Vec3& point) const {
 		const double EPS = 1e-12;
 		Vec3 v = toLightDirection(point);
+
 		double len = v.length();
-		if (len <= EPS) return Vec3(0, 0, 0);
+		if (len <= EPS) {
+			return Vec3(0, 0, 0);
+		}
+
 		return v / len;
 	}
 
@@ -42,8 +46,9 @@ struct Light {
 
 	Vec3 contributionFrom(double dist, double NdotL) const {
 		const double EPS = 1e-12;
-		if (dist <= EPS) return Vec3(0, 0, 0);
-		if (NdotL <= 0.0) return Vec3(0, 0, 0);
+		if (dist <= EPS || NdotL <= 0.0) {
+			return Vec3(0, 0, 0);
+		}
 		double attenuation = 1.0 / (dist * dist);
 		return emitted() * (attenuation * NdotL);
 	}
