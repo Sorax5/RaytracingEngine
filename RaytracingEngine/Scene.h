@@ -8,6 +8,10 @@
 #include <unordered_map>
 #include <iostream>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 class Scene {
 private:
 	std::vector<Sphere> spheres;
@@ -100,14 +104,14 @@ public:
 		return intersections;
 	}
 
-	HitInfo CalculatePixelDepth(std::size_t x, std::size_t y, bool aa) {
+	HitInfo CalculatePixelDepth(std::size_t x, std::size_t y, bool aa) const {
 		Rayon ray = camera.getRay(x, y, aa);
 		std::vector<HitInfo> intersections = getIntersections(ray);
 		HitInfo closest = HitInfo::getClosestIntersection(intersections);
 		return closest;
 	}
 
-	Vec3 GeneratePixelAt(int x, int y) {
+	Vec3 GeneratePixelAt(int x, int y) const {
 		std::vector<Vec3> colors;
 		int pixelIndex = getPixelIndex(x, y);
 		const double bias = 1e-3;
@@ -180,14 +184,17 @@ public:
 	std::vector<Vec3> GenerateImage() {
 		std::vector<Vec3> finalImage(camera.width * camera.height, Vec3(0, 0, 0));
 
-		#pragma omp parallel for schedule(dynamic)
-		for (int y = 0; y < static_cast<int>(camera.height); ++y) {
-			for (std::size_t x = 0; x < camera.width; ++x) {
-				size_t pixelIndex = getPixelIndex(x, y);
-				finalImage[pixelIndex] = GeneratePixelAt(x, y);
-			}
-		}
+		int width = static_cast<int>(camera.width);
+		int height = static_cast<int>(camera.height);
+		const int totalPixels = width * height;
 
+		#pragma omp parallel for schedule(dynamic) default(shared) firstprivate(width, height)
+		for(int idx = 0; idx < totalPixels; ++idx) {
+			int x = idx % width;
+			int y = idx / width;
+			finalImage[idx] = GeneratePixelAt(x, y);
+		}
+		
 		return finalImage;
 	}
 };
