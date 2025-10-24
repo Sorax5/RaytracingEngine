@@ -80,9 +80,11 @@ public:
 
 	std::optional<double> intersect(const Rayon& ray) const {
 		Vec3 oc = ray.origin - transform.position;
+
 		double a = ray.direction.dot(ray.direction);
 		double b = 2.0 * oc.dot(ray.direction);
 		double c = oc.dot(oc) - radius * radius;
+
 		double discriminant = b * b - 4 * a * c;
 		if (discriminant < 0) {
 			return std::nullopt;
@@ -97,13 +99,18 @@ public:
 		return normal;
 	}
 
-	HitInfo getHitInfoAt(const Rayon& ray, int index) const {
+	HitInfo getHitInfoAt(const Rayon& ray, size_t index) const {
 		HitInfo info = { -1, HitType::NONE, -1, Vec3() };
-		Vec3 point = intersect(ray).has_value() ? ray.pointAtDistance(intersect(ray).value()) : Vec3();
-		info.distance = intersect(ray).has_value() ? intersect(ray).value() : -1;
+
+		std::optional<double> intersection = intersect(ray);
+		if (intersection.has_value())
+		{
+			info.hitPoint = ray.pointAtDistance(intersection.value());
+			info.distance = intersection.value();
+		}
+
 		info.type = HitType::SPHERE;
 		info.index = index;
-		info.hitPoint = point;
 		return info;
 	}
 
@@ -146,11 +153,16 @@ public:
 
 	HitInfo getHitInfoAt(const Rayon& ray, int index) const {
 		HitInfo info = { -1, HitType::NONE, -1, Vec3() };
-		Vec3 point = intersect(ray).has_value() ? ray.pointAtDistance(intersect(ray).value()) : Vec3();
-		info.distance = intersect(ray).has_value() ? intersect(ray).value() : -1;
+
+		std::optional<double> intersection = intersect(ray);
+		if (intersection.has_value())
+		{
+			info.hitPoint = ray.pointAtDistance(intersection.value());
+			info.distance = intersection.value();
+		}
+
 		info.type = HitType::PLANE;
 		info.index = index;
-		info.hitPoint = point;
 		return info;
 	}
 

@@ -24,15 +24,18 @@ struct Light {
 	}
 
 	Vec3 dirTo(const Vec3& point) const {
-		const double EPS = 1e-12;
-		Vec3 v = toLightDirection(point);
+		static constexpr double EPS = 1e-12;
+		const Vec3 v = position - point;
 
-		double len = v.length();
-		if (len <= EPS) {
+		const double nonSquaredLen = v.x * v.x + v.y * v.y + v.z * v.z;
+		const double esp2 = EPS * EPS;
+		if (nonSquaredLen <= esp2)
+		{
 			return Vec3(0, 0, 0);
 		}
 
-		return v / len;
+		const double invLen = 1.0 / std::sqrt(nonSquaredLen);
+		return invLen * v;
 	}
 
 	Rayon shadowRayFrom(const Vec3& hitPoint, double bias) const {
