@@ -12,7 +12,7 @@ struct Transform {
 
 struct Material {
 	Vec3 color;
-	double shininess = 32.0;
+	double shininess = 128.0;
 
 	Vec3 calculateSpecular(const Vec3& lightDir, const Vec3& viewDir, const Vec3& normal) const {
 		Vec3 reflectDir = (lightDir - normal * 2.0 * lightDir.dot(normal)).normalize();

@@ -161,6 +161,9 @@ std::vector<std::vector<Color>> tonemapAll(const std::vector<Vec3> pixels)
 
 int main()
 {
+	int n_threads = omp_get_max_threads();
+	std::cout << "Nombre de threads par défaut : " << n_threads << "\n";
+
 	Vec3 origin = Vec3(0, 0, -10);
 	Camera camera = Camera(origin, 500, WIDTH, HEIGHT, 0, 200);
 	Scene scene = Scene(camera);

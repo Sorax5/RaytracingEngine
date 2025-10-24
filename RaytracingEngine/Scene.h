@@ -85,29 +85,51 @@ public:
 		}
 	}
 
-	std::vector<HitInfo> getIntersections(const Rayon& ray) const
-	{
-		const std::size_t size = spheres.size() + planes.size();
-		std::vector<HitInfo> intersections(size, { std::numeric_limits<double>::infinity(), HitType::NONE, std::nullopt, Vec3() });
+	HitInfo intersectClosest(const Rayon& ray) const {
+		HitInfo closest{ std::numeric_limits<double>::infinity(), HitType::NONE, std::nullopt, Vec3() };
 
 		for (std::size_t sphereIndex = 0; sphereIndex < spheres.size(); ++sphereIndex) {
-			const Sphere& shape = spheres[sphereIndex];
-			intersections[sphereIndex] = shape.getHitInfoAt(ray, sphereIndex);
+			const Sphere& s = spheres[sphereIndex];
+			HitInfo hit = s.getHitInfoAt(ray, static_cast<int>(sphereIndex));
+			if (hit.hasHitSomething() && hit.isCloserThan(closest)) {
+				closest = hit;
+			}
 		}
 
-		for (std::size_t planeIndex = 0; planeIndex < planes.size(); ++planeIndex)
-		{
-			const Plane& shape = planes[planeIndex];
-			intersections[spheres.size() + planeIndex] = shape.getHitInfoAt(ray, planeIndex);
+		for (std::size_t planeIndex = 0; planeIndex < planes.size(); ++planeIndex) {
+			const Plane& p = planes[planeIndex];
+			HitInfo hit = p.getHitInfoAt(ray, static_cast<int>(planeIndex));
+			if (hit.hasHitSomething() && hit.isCloserThan(closest)) {
+				closest = hit;
+			}
 		}
 
-		return intersections;
+		return closest;
+	}
+
+	bool intersectAnyBefore(const Rayon& ray, double maxDist) const {
+		for (std::size_t sphereIndex = 0; sphereIndex < spheres.size(); ++sphereIndex) {
+			auto t = spheres[sphereIndex].intersect(ray);
+			if (t.has_value()) {
+				double dist = t.value();
+				if (dist > 0.0 && dist < maxDist) return true;
+			}
+		}
+
+		for (std::size_t planeIndex = 0; planeIndex < planes.size(); ++planeIndex) {
+			auto t = planes[planeIndex].intersect(ray);
+			if (t.has_value()) {
+				double dist = t.value();
+				if (dist > 0.0 && dist < maxDist) return true;
+			}
+		}
+
+		return false;
 	}
 
 	HitInfo CalculatePixelDepth(std::size_t x, std::size_t y, bool aa) const {
 		Rayon ray = camera.getRay(x, y, aa);
-		std::vector<HitInfo> intersections = getIntersections(ray);
-		HitInfo closest = HitInfo::getClosestIntersection(intersections);
+		HitInfo closest = intersectClosest(ray);
 		return closest;
 	}
 
@@ -139,16 +161,13 @@ public:
 
 			for (const Light& light : lights) {
 				double dist = light.distanceTo(closest.hitPoint);
-				if (dist <= 1e-6) {
+				if (dist <= bias) {
 					continue;
 				}
 				Vec3 Ldir = light.dirTo(closest.hitPoint);
 
 				Rayon shadowRay = light.shadowRayFrom(closest.hitPoint, bias);
-				std::vector<HitInfo> shadowIntersections = getIntersections(shadowRay);
-				HitInfo shadowHit = HitInfo::getClosestIntersection(shadowIntersections);
-
-				if (shadowHit.hasHitSomething() && shadowHit.distance < (dist - bias)) {
+				if (intersectAnyBefore(shadowRay, dist - bias)) {
 					continue;
 				}
 
