@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <cstddef>
+#include <iostream>
 
 struct Vec3 {
     double x, y, z;
@@ -73,12 +74,26 @@ struct Camera {
     double farPlaneDistance;
     double nearPlaneDistance;
 
+	int antiAliasingAmount = 32;
+
     Camera(const Vec3& position = {0,0,0}, double focal = 1.0, std::size_t width = 800, std::size_t height = 600, double nearPlaneDistance = 1.0, double farPlaneDistance = 1000.0)
         : position(position), forward{0,0,1}, width(width), height(height), focal(focal), farPlaneDistance(farPlaneDistance), nearPlaneDistance(nearPlaneDistance) {}
 
-    Rayon getRay(std::size_t pixelX, std::size_t pixelY) const {
-        double sx = (static_cast<double>(pixelX) + 0.5) - static_cast<double>(width) / 2.0;
-        double sy = static_cast<double>(height) / 2.0 - (static_cast<double>(pixelY) + 0.5);
+    Rayon getRay(std::size_t pixelX, std::size_t pixelY, bool aa) const {
+        double sx = (static_cast<double>(pixelX) ) - static_cast<double>(width) / 2.0;
+        double sy = static_cast<double>(height) / 2.0 - (static_cast<double>(pixelY));
+
+		double jitterX = 0.0;
+		double jitterY = 0.0;
+		if (aa) {
+			double invAA = 1.0 / static_cast<double>(aa);
+			jitterX = ((static_cast<double>(rand()) / RAND_MAX)) * invAA;
+			jitterY = ((static_cast<double>(rand()) / RAND_MAX)) * invAA;
+		}
+
+		sx += jitterX;
+		sy += jitterY;
+
         Vec3 screenPoint = Vec3(sx, sy, position.z + focal);
         Vec3 dir = (screenPoint - position).normalize();
         return Rayon(position, dir);

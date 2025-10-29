@@ -8,63 +8,40 @@
 #include <unordered_map>
 #include <iostream>
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 class Scene {
 private:
-	std::vector<std::unique_ptr<Sphere>> spheres;
-	std::vector<std::unique_ptr<Plane>> planes;
-	std::vector<std::unique_ptr<Light>> lights;
-
-	std::vector<HitInfo> depthMap;
-	std::vector<Vec3> normalMap;
-	std::vector<Vec3> colorMap;
-	std::vector<Vec3> lightMap;
-	std::vector<Vec3> specularMap;
+	std::vector<Sphere> spheres;
+	std::vector<Plane> planes;
+	std::vector<Light> lights;
 
 	Camera camera;
 public:
 	Scene(Camera cam) : camera(cam) {
 		const std::size_t pixelCount = camera.width * camera.height;
-		this->depthMap = std::vector<HitInfo>(pixelCount, { std::numeric_limits<double>::infinity(), HitType::NONE, std::nullopt, Vec3() });
-		this->spheres = std::vector<std::unique_ptr<Sphere>>();
-		this->planes = std::vector<std::unique_ptr<Plane>>();
-		this->lights = std::vector<std::unique_ptr<Light>>();
+		this->spheres = std::vector<Sphere>();
+		this->planes = std::vector<Plane>();
+		this->lights = std::vector<Light>();
 	}
 
-	void addSphere(const Sphere& sphere) {
-		spheres.push_back(std::make_unique<Sphere>(sphere));
+	void addSphere(Sphere& sphere) {
+		spheres.emplace_back(std::move(sphere));
 	}
-	void addPlane(const Plane& plane) {
-		planes.push_back(std::make_unique<Plane>(plane));
+	void addPlane(Plane& plane) {
+		planes.emplace_back(std::move(plane));
 	}
-	void addLight(const Light& light) {
-		lights.push_back(std::make_unique<Light>(light));
+	void addLight(Light& light) {
+		lights.emplace_back(std::move(light));
 	}
 
-	const std::vector<std::unique_ptr<Sphere>>& getSpheres() const { return spheres; }
-	const std::vector<std::unique_ptr<Plane>>& getPlanes() const { return planes; }
-	const std::vector<std::unique_ptr<Light>>& getLights() const { return lights; }
-
-	const std::vector<Vec3>& getColorMap() const { return colorMap; }
-	const std::vector<Vec3>& getNormalMap() const { return normalMap; }
-	const std::vector<Vec3>& getLightMap() const { return lightMap; }
-	const std::vector<Vec3>& getSpecularMap() const { return specularMap; }
+	const std::vector<Sphere>& getSpheres() const { return spheres; }
+	const std::vector<Plane>& getPlanes() const { return planes; }
+	const std::vector<Light>& getLights() const { return lights; }
 
 	const Camera& getCamera() const { return camera; }
-
-	const std::vector<HitInfo>& getDepthMap() const { return depthMap; }
-
-	std::vector<Vec3> getDepthMapValues() const {
-		const std::size_t n = depthMap.size();
-		std::vector<Vec3> depthValues(n, Vec3(0, 0, 0));
-		for (std::size_t i = 0; i < n; ++i) {
-			const HitInfo& hit = depthMap[i];
-			if (hit.hasHitSomething()) {
-				double depthValue = hit.normalizedDistance(camera);
-				depthValues[i] = Vec3(depthValue, depthValue, depthValue);
-			}
-		}
-		return depthValues;
-	}
 
 	std::size_t getPixelIndex(std::size_t x, std::size_t y) const {
 		return y * camera.width + x;
@@ -74,9 +51,9 @@ public:
 		if (!hit.index.has_value()) return std::nullopt;
 		switch (hit.type) {
 			case HitType::SPHERE:
-				return spheres[hit.index.value()]->getNormalAt(hit.hitPoint);
+				return spheres[hit.index.value()].getNormalAt(hit.hitPoint);
 			case HitType::PLANE:
-				return planes[hit.index.value()]->getNormalAt();
+				return planes[hit.index.value()].getNormalAt();
 			default:
 				return std::nullopt;
 		}
@@ -87,9 +64,9 @@ public:
 		switch (hit.type)
 		{
 			case HitType::SPHERE:
-				return spheres[hit.index.value()]->getMaterial().color;
+				return spheres[hit.index.value()].getMaterial().color;
 			case HitType::PLANE:
-				return planes[hit.index.value()]->getMaterial().color;
+				return planes[hit.index.value()].getMaterial().color;
 			default:
 				return Vec3(0, 0, 0);
 		}
@@ -100,165 +77,159 @@ public:
 		switch (hit.type)
 		{
 			case HitType::SPHERE:
-				return spheres[hit.index.value()]->getMaterial().shininess;
+				return spheres[hit.index.value()].getMaterial().shininess;
 			case HitType::PLANE:
-				return planes[hit.index.value()]->getMaterial().shininess;
+				return planes[hit.index.value()].getMaterial().shininess;
 			default:
 				return 32.0;
 		}
 	}
 
-	std::vector<HitInfo> getIntersections(const Rayon& ray) const
-	{
-		const std::size_t size = spheres.size() + planes.size();
-		std::vector<HitInfo> intersections(size, { std::numeric_limits<double>::infinity(), HitType::NONE, std::nullopt, Vec3() });
+	HitInfo intersectClosest(const Rayon& ray) const {
+		HitInfo closest{ std::numeric_limits<double>::infinity(), HitType::NONE, std::nullopt, Vec3() };
 
 		for (std::size_t sphereIndex = 0; sphereIndex < spheres.size(); ++sphereIndex) {
-			const std::unique_ptr<Sphere>& shape = spheres[sphereIndex];
-			intersections[sphereIndex] = shape->getHitInfoAt(ray, sphereIndex);
+			const Sphere& s = spheres[sphereIndex];
+			HitInfo hit = s.getHitInfoAt(ray, sphereIndex);
+			if (hit.hasHitSomething() && hit.isCloserThan(closest)) {
+				closest = hit;
+			}
 		}
 
-		for (std::size_t planeIndex = 0; planeIndex < planes.size(); ++planeIndex)
-		{
-			const std::unique_ptr<Plane>& shape = planes[planeIndex];
-			intersections[spheres.size() + planeIndex] = shape->getHitInfoAt(ray, planeIndex);
+		for (std::size_t planeIndex = 0; planeIndex < planes.size(); ++planeIndex) {
+			const Plane& p = planes[planeIndex];
+			HitInfo hit = p.getHitInfoAt(ray, planeIndex);
+			if (hit.hasHitSomething() && hit.isCloserThan(closest)) {
+				closest = hit;
+			}
 		}
 
-		return intersections;
+		return closest;
 	}
 
-	void generateDepthmap() {
-		for (std::size_t y = 0; y < camera.height; ++y)
+	bool intersectAnyBefore(const Rayon& ray, double maxDist) const {
+		if (spheres.empty() && planes.empty())
 		{
-			for (std::size_t x = 0; x < camera.width; ++x)
-			{
-				const std::size_t idx = getPixelIndex(x, y);
-				depthMap[idx] = { std::numeric_limits<double>::infinity(), HitType::NONE, std::nullopt, Vec3() };
+			return false;
+		}
 
-				Rayon ray = camera.getRay(x, y);
-				std::vector<HitInfo> intersections = getIntersections(ray);
-				HitInfo closest = HitInfo::getClosestIntersection(intersections);
-				if (closest.hasHitSomething())
+		for (std::size_t sphereIndex = 0; sphereIndex < spheres.size(); ++sphereIndex) {
+			std::optional<double> intersection = spheres[sphereIndex].intersect(ray);
+			if (intersection) {
+				const double dist = intersection.value();
+				if (dist > 0.0 && dist < maxDist) {
+					return true;
+				}
+			}
+		}
+
+		for (std::size_t planeIndex = 0; planeIndex < planes.size(); ++planeIndex) {
+			std::optional<double> intersection = planes[planeIndex].intersect(ray);
+			if (intersection.has_value()) {
+				double dist = intersection.value();
+				if (dist > 0.0 && dist < maxDist) {
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	HitInfo CalculatePixelDepth(std::size_t x, std::size_t y, bool aa) const {
+		Rayon ray = camera.getRay(x, y, aa);
+		HitInfo closest = intersectClosest(ray);
+		return closest;
+	}
+
+	Vec3 GeneratePixelAt(int x, int y) const {
+		Vec3 accumulatedColor = Vec3(0, 0, 0);
+		int samples = 0;
+
+		const double bias = 1e-6;
+		const int aaCount = camera.antiAliasingAmount;
+
+		for (int aa = 0; aa < aaCount; ++aa)
+		{
+			Vec3 color = Vec3(0, 0, 0);
+
+			HitInfo closest = CalculatePixelDepth(x, y, aa > 0 && aaCount > 1);
+			if (!closest.hasHitSomething()) {
+				continue;
+			}
+
+			auto optNormal = getNormalOfHit(closest);
+			if (!optNormal.has_value()) {
+				continue;
+			}
+			Vec3 normal = optNormal.value().normalize();
+
+			Vec3 viewDir = (camera.position - closest.hitPoint).normalize();
+			double shininess = getShininessOfHit(closest);
+
+			Vec3 specularAccum = Vec3(0, 0, 0);
+			Vec3 incoming = Vec3(0, 0, 0);
+			for (std::size_t li = 0; li < lights.size(); ++li) {
+				const Light& light = lights[li];
+
+				Vec3 Ldir = light.dirTo(closest.hitPoint);
+				double NdotL = normal.dot(Ldir);
+				if (NdotL <= 0.0) {
+					continue;
+				}
+				NdotL = std::max(0.0, NdotL);
+
+				double dist = light.distanceTo(closest.hitPoint);
+				if (dist <= bias)
 				{
-					depthMap[idx] = closest;
-				}
-			}
-
-		}
-	}
-
-	void generateColormap() {
-		const std::size_t pixelCount = camera.width * camera.height;
-		std::vector<Vec3> colorMapLocal(pixelCount, Vec3(1, 0, 1));
-
-		for (std::size_t y = 0; y < camera.height; ++y)
-		{
-			for (std::size_t x = 0; x < camera.width; ++x) {
-				std::size_t pixelIndex = getPixelIndex(x, y);
-
-				HitInfo hit = depthMap[pixelIndex];
-				if (hit.hasHitSomething())
-				{
-					colorMapLocal[pixelIndex] = getColorOfHit(hit);
-				}
-			}
-		}
-		
-		this->colorMap = std::move(colorMapLocal);
-	}
-
-	void generateNormalmap() {
-		const std::size_t pixelCount = camera.width * camera.height;
-		std::vector<Vec3> normalMapLocal(pixelCount, Vec3(0, 0, 0));
-		for (std::size_t y = 0; y < camera.height; ++y)
-		{
-			for (std::size_t x = 0; x < camera.width; ++x) {
-				std::size_t pixelIndex = getPixelIndex(x, y);
-				HitInfo hit = depthMap[pixelIndex];
-				if(!hit.hasHitSomething()) {
 					continue;
 				}
 
-				Vec3 normal = getNormalOfHit(hit).value().normalize();
-				normalMapLocal[pixelIndex] = normal;
-			}
-		}
-		
-		this->normalMap = std::move(normalMapLocal);
-	}
-
-	void generateLightmap() {
-		const std::size_t pixelCount = camera.width * camera.height;
-		std::vector<Vec3> lightMapLocal(pixelCount, Vec3(0, 0, 0));
-		std::vector<Vec3> specularMapLocal(pixelCount, Vec3(0, 0, 0));
-
-		const double bias = 1e-3;
-		for (std::size_t y = 0; y < camera.height; ++y) {
-			for (std::size_t x = 0; x < camera.width; ++x) {
-				std::size_t pixelIndex = getPixelIndex(x, y);
-				const HitInfo& pixelDepth = depthMap[pixelIndex];
-				if (!pixelDepth.hasHitSomething()) {
+				Rayon shadowRay = light.shadowRayFrom(closest.hitPoint, bias);
+				if (intersectAnyBefore(shadowRay, dist - bias)) {
 					continue;
 				}
 
-				auto optNormal = getNormalOfHit(pixelDepth);
-				if (!optNormal.has_value()) {
-					continue;
-				}
-				Vec3 normal = optNormal.value().normalize();
+				incoming += light.contributionFrom(dist, NdotL);
 
-				Vec3 viewDir = (camera.position - pixelDepth.hitPoint).normalize();
-				double shininess = getShininessOfHit(pixelDepth);
-
-				Vec3 specularAccum = Vec3(0, 0, 0);
-				Vec3 incoming = Vec3(0, 0, 0);
-				for (const std::unique_ptr<Light>& light : lights) {
-					double dist = light->distanceTo(pixelDepth.hitPoint);
-					if (dist <= 1e-6) {
-						continue;
-					}
-
-					Vec3 Ldir = light->dirTo(pixelDepth.hitPoint);
-					Rayon shadowRay = light->shadowRayFrom(pixelDepth.hitPoint, bias);
-
-					std::vector<HitInfo> shadowIntersections = getIntersections(shadowRay);
-					HitInfo shadowHit = HitInfo::getClosestIntersection(shadowIntersections);
-
-					if (shadowHit.hasHitSomething() && shadowHit.distance < (dist - bias)) {
-						continue;
-					}
-
-					double NdotL = std::max(0.0, normal.dot(Ldir));
-					if (NdotL <= 0.0) {
-						continue;
-					}
-
-					incoming += light->contributionFrom(dist, NdotL);
-
-					Vec3 half = (Ldir + viewDir).normalize();
-					double NdotH = std::max(0.0, normal.dot(half));
+				Vec3 half = (Ldir + viewDir).normalize();
+				double NdotH = std::max(0.0, normal.dot(half));
+				if (NdotH > 0.0) {
 					double specFactor = std::pow(NdotH, shininess);
-
-					Vec3 specContribution = light->emitted() * (1.0 / (dist * dist)) * specFactor;
-
+					Vec3 specContribution = light.emitted() * (1.0 / (dist * dist)) * specFactor;
 					specularAccum += specContribution;
 				}
-
-				lightMapLocal[pixelIndex] = incoming;
-				specularMapLocal[pixelIndex] = specularAccum;
 			}
+
+			color = getColorOfHit(closest) * incoming + specularAccum;
+			accumulatedColor += color;
+			samples += 1;
 		}
 
-		this->lightMap = std::move(lightMapLocal);
-		this->specularMap = std::move(specularMapLocal);
+		if (samples > 0) {
+			accumulatedColor /= static_cast<double>(samples);
+			return accumulatedColor;
+		}
+
+		return Vec3(0, 0, 0);
 	}
 
-	std::vector<Vec3> combineMaps() {
-		const std::size_t pixelCount = camera.width * camera.height;
-		std::vector<Vec3> combinedMap(pixelCount, Vec3(0, 0, 0));
-		for (std::size_t i = 0; i < combinedMap.size(); ++i) {
-			combinedMap[i] = colorMap[i] * lightMap[i] + specularMap[i];
+	std::vector<Vec3> GenerateImage() {
+		std::vector<Vec3> finalImage(camera.width * camera.height, Vec3(0, 0, 0));
+
+		int width = static_cast<int>(camera.width);
+		int height = static_cast<int>(camera.height);
+		const int totalPixels = width * height;
+
+		/*#ifdef _OPENMP
+		#pragma omp parallel for schedule(static) 
+		#endif*/
+		for(int idx = 0; idx < totalPixels; ++idx) {
+			int x = idx % width;
+			int y = idx / width;
+			finalImage[idx] = GeneratePixelAt(x, y);
 		}
-		return combinedMap;
+		
+		return finalImage;
 	}
 };

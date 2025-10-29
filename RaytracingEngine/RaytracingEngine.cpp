@@ -161,12 +161,19 @@ std::vector<std::vector<Color>> tonemapAll(const std::vector<Vec3> pixels)
 
 int main()
 {
+	int n_threads = omp_get_max_threads();
+	std::cout << "Nombre de threads par défaut : " << n_threads << "\n";
+
 	Vec3 origin = Vec3(0, 0, -10);
-	Camera camera = Camera(origin, 500, WIDTH, HEIGHT, 0, 250);
+	Camera camera = Camera(origin, 500, WIDTH, HEIGHT, 0, 200);
 	Scene scene = Scene(camera);
 
-	scene.addSphere(Sphere(4, Vec3(8, 0, 10), Vec3(1, 1, 1)));
-	scene.addSphere(Sphere(4, Vec3(-8, 0, 7), Vec3(1, 1, 1)));
+	Sphere sphere1(3, Vec3(-4, 0, 12), Vec3(1, 0, 0));
+	Sphere sphere2(3, Vec3(4, 0, 15), Vec3(0, 0, 1));
+
+	scene.addSphere(sphere1);
+	scene.addSphere(sphere2);
+
 	double distance = 15;
 
 	std::vector<Vec3> normalDirections = {
@@ -189,21 +196,30 @@ int main()
 	{
 		Vec3 dir = normalDirections[i];
 		Vec3 col = planeColors[i];
-		scene.addPlane(Plane(dir * -distance, dir, col));
+
+        Plane plane(dir * -distance, dir, col);
+        scene.addPlane(plane);
 	}
 
 	//scene.addLight(Light(Vec3(10, 10, 5), Vec3(0, 1, 1), 50));
 	//scene.addLight(Light(Vec3(-10, -10, 5), Vec3(1, 0, 1), 50));
-	scene.addLight(Light(Vec3(0, 0, 0), Vec3(1, 1, 1), 100));
-	scene.addLight(Light(Vec3(0, 0, 8), Vec3(1, 1, 1), 75));
 
-	scene.generateDepthmap();
-	scene.generateColormap();
-	scene.generateNormalmap();
+	Light light1(Vec3(0, 0, 0), Vec3(1, 1, 1), 100);
+	Light light2(Vec3(0, 0, 8), Vec3(1, 1, 1), 75);
+	scene.addLight(light1);
+	scene.addLight(light2);
 
-	scene.generateLightmap();
+	// record time of generation
 
-	std::vector<Vec3> pixels = scene.combineMaps();
+	auto gen_start = std::chrono::high_resolution_clock::now();
+	std::vector<Vec3> pixels = scene.GenerateImage();
+	auto gen_end = std::chrono::high_resolution_clock::now();
+
+	auto gen_ms = std::chrono::duration_cast<std::chrono::milliseconds>(gen_end - gen_start).count();
+	double gen_s = static_cast<double>(gen_ms) / 1000.0;
+
+	std::cout << "Temps de génération de l'image : " << gen_ms << " ms (" << gen_s << " s)\n";
+
 	std::vector<Color> colorPixels = tonemap(pixels);
 
 	std::vector<std::string> tonemapNames = {
