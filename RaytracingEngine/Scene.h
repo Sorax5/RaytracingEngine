@@ -7,6 +7,7 @@
 #include "Light.h"
 #include <unordered_map>
 #include <iostream>
+#include <algorithm>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -162,46 +163,57 @@ public:
 			if (!optNormal.has_value()) {
 				continue;
 			}
-			Vec3 normal = optNormal.value().normalize();
+			Vec3 normal = optNormal.value();
 
 			Vec3 viewDir = (camera.position - closest.hitPoint).normalize();
 			double shininess = getShininessOfHit(closest);
+			Vec3 hitColor = getColorOfHit(closest);
 
 			Vec3 specularAccum = Vec3(0, 0, 0);
 			Vec3 incoming = Vec3(0, 0, 0);
 			for (std::size_t li = 0; li < lights.size(); ++li) {
 				const Light& light = lights[li];
 
-				Vec3 Ldir = light.dirTo(closest.hitPoint);
-				double NdotL = normal.dot(Ldir);
-				if (NdotL <= 0.0) {
-					continue;
-				}
-				NdotL = std::max(0.0, NdotL);
-
-				double dist = light.distanceTo(closest.hitPoint);
-				if (dist <= bias)
-				{
+				Vec3 v = light.position - closest.hitPoint;
+				double nonSquaredLen = v.x * v.x + v.y * v.y + v.z * v.z;
+				static constexpr double EPS = 1e-12;
+				if (nonSquaredLen <= EPS * EPS) {
 					continue;
 				}
 
-				Rayon shadowRay = light.shadowRayFrom(closest.hitPoint, bias);
+				double ndotl_un = normal.dot(v);
+				if (ndotl_un <= 0.0) {
+					continue;
+				}
+
+				double invLen = 1.0 / std::sqrt(nonSquaredLen);
+				Vec3 Ldir = v * invLen;
+				double NdotL = ndotl_un * invLen;
+
+				double dist = 1.0 / invLen;
+				if (dist <= bias) {
+					continue;
+				}
+
+				Rayon shadowRay(closest.hitPoint + Ldir * bias, Ldir);
 				if (intersectAnyBefore(shadowRay, dist - bias)) {
 					continue;
 				}
 
-				incoming += light.contributionFrom(dist, NdotL);
+				Vec3 emitted = light.emitted();
+				double invDist2 = 1.0 / nonSquaredLen;
+				incoming += emitted * (invDist2 * NdotL);
 
 				Vec3 half = (Ldir + viewDir).normalize();
 				double NdotH = std::max(0.0, normal.dot(half));
 				if (NdotH > 0.0) {
 					double specFactor = std::pow(NdotH, shininess);
-					Vec3 specContribution = light.emitted() * (1.0 / (dist * dist)) * specFactor;
+					Vec3 specContribution = emitted * (invDist2 * specFactor);
 					specularAccum += specContribution;
 				}
 			}
 
-			color = getColorOfHit(closest) * incoming + specularAccum;
+			color = hitColor * incoming + specularAccum;
 			accumulatedColor += color;
 			samples += 1;
 		}
@@ -221,15 +233,31 @@ public:
 		int height = static_cast<int>(camera.height);
 		const int totalPixels = width * height;
 
-		/*#ifdef _OPENMP
-		#pragma omp parallel for schedule(static) 
-		#endif*/
-		for(int idx = 0; idx < totalPixels; ++idx) {
-			int x = idx % width;
-			int y = idx / width;
-			finalImage[idx] = GeneratePixelAt(x, y);
+		// Tile size pour tuilage 16x16
+		const int tileSize = 16;
+		int tilesX = (width + tileSize - 1) / tileSize;
+		int tilesY = (height + tileSize - 1) / tileSize;
+		const int totalTiles = tilesX * tilesY;
+
+		#ifdef _OPENMP
+		#pragma omp parallel for schedule(guided, 64) if(totalPixels > 16384)
+		#endif
+		for (int t = 0; t < totalTiles; ++t) {
+			int tx = t % tilesX;
+			int ty = t / tilesX;
+			int startX = tx * tileSize;
+			int startY = ty * tileSize;
+			int endX = std::min(startX + tileSize, width);
+			int endY = std::min(startY + tileSize, height);
+
+			for (int y = startY; y < endY; ++y) {
+				int baseIdx = y * width;
+				for (int x = startX; x < endX; ++x) {
+					finalImage[baseIdx + x] = GeneratePixelAt(x, y);
+				}
+			}
 		}
-		
+
 		return finalImage;
 	}
 };

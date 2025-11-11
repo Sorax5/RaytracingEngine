@@ -34,7 +34,7 @@ struct HitInfo {
     Vec3 hitPoint;
 
 	bool hasHitSomething() const {
-		return type != HitType::NONE && index != -1 && distance > 1e-4;
+		return type != HitType::NONE && index.has_value() && distance > 1e-4;
 	}
 
 	bool isCloserThan(const HitInfo& other) const {
@@ -46,8 +46,13 @@ struct HitInfo {
 	}
 
 	static HitInfo getClosestIntersection(const std::vector<HitInfo>& intersections) {
-		HitInfo closestIntersection = { std::numeric_limits<double>::max(), HitType::NONE, -1, Vec3() };
-		for (int i = 0; i < intersections.size(); i++)
+		HitInfo closestIntersection;
+		closestIntersection.distance = std::numeric_limits<double>::max();
+		closestIntersection.type = HitType::NONE;
+		closestIntersection.index = std::nullopt;
+		closestIntersection.hitPoint = Vec3();
+
+		for (int i = 0; i < static_cast<int>(intersections.size()); i++)
 		{
 			HitInfo info = intersections[i];
 			if (!info.hasHitSomething())
@@ -55,11 +60,11 @@ struct HitInfo {
 				continue;
 			}
 
-			if (closestIntersection.isCloserThan(info))
+			// keep the smallest distance
+			if (info.distance < closestIntersection.distance)
 			{
-				continue;
+				closestIntersection = info;
 			}
-			closestIntersection = info;
 		}
 		return closestIntersection;
 	}
@@ -100,17 +105,21 @@ public:
 	}
 
 	HitInfo getHitInfoAt(const Rayon& ray, size_t index) const {
-		HitInfo info = { -1, HitType::NONE, -1, Vec3() };
+		HitInfo info;
+		info.distance = std::numeric_limits<double>::infinity();
+		info.type = HitType::NONE;
+		info.index = std::nullopt;
+		info.hitPoint = Vec3();
 
 		std::optional<double> intersection = intersect(ray);
 		if (intersection.has_value())
 		{
 			info.hitPoint = ray.pointAtDistance(intersection.value());
 			info.distance = intersection.value();
+			info.type = HitType::SPHERE;
+			info.index = index;
 		}
 
-		info.type = HitType::SPHERE;
-		info.index = index;
 		return info;
 	}
 
@@ -152,17 +161,21 @@ public:
 	}
 
 	HitInfo getHitInfoAt(const Rayon& ray, int index) const {
-		HitInfo info = { -1, HitType::NONE, -1, Vec3() };
+		HitInfo info;
+		info.distance = std::numeric_limits<double>::infinity();
+		info.type = HitType::NONE;
+		info.index = std::nullopt;
+		info.hitPoint = Vec3();
 
 		std::optional<double> intersection = intersect(ray);
 		if (intersection.has_value())
 		{
 			info.hitPoint = ray.pointAtDistance(intersection.value());
 			info.distance = intersection.value();
+			info.type = HitType::PLANE;
+			info.index = static_cast<std::size_t>(index);
 		}
 
-		info.type = HitType::PLANE;
-		info.index = index;
 		return info;
 	}
 

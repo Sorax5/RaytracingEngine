@@ -77,6 +77,9 @@
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
+      <OpenMPSupport>true</OpenMPSupport>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <Optimization>Disabled</Optimization>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -87,11 +90,13 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <FunctionLevelLinking>true</FunctionLevelLinking>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
+      <OpenMPSupport>true</OpenMPSupport>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <Optimization>MaxSpeed</Optimization>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -107,6 +112,9 @@
       <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalIncludeDirectories>
       </AdditionalIncludeDirectories>
+      <OpenMPSupport>true</OpenMPSupport>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <Optimization>Disabled</Optimization>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -120,7 +128,6 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <FunctionLevelLinking>true</FunctionLevelLinking>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
@@ -128,6 +135,8 @@
       <OpenMPSupport>true</OpenMPSupport>
       <AdditionalIncludeDirectories>
       </AdditionalIncludeDirectories>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <Optimization>MaxSpeed</Optimization>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <cstddef>
 #include <iostream>
+#include <random>
 
 struct Vec3 {
     double x, y, z;
@@ -87,8 +88,11 @@ struct Camera {
 		double jitterY = 0.0;
 		if (aa) {
 			double invAA = 1.0 / static_cast<double>(aa);
-			jitterX = ((static_cast<double>(rand()) / RAND_MAX)) * invAA;
-			jitterY = ((static_cast<double>(rand()) / RAND_MAX)) * invAA;
+			// RNG thread-local pour éviter contention et rendre reproductible en multithread
+			thread_local static std::mt19937 gen((std::random_device())());
+			thread_local static std::uniform_real_distribution<double> dist(0.0, 1.0);
+			jitterX = dist(gen) * invAA;
+			jitterY = dist(gen) * invAA;
 		}
 
 		sx += jitterX;
