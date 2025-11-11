@@ -3,6 +3,7 @@
 #include "Light.h"
 #include "Shape.h"
 #include "Scene.h"
+
 #include <vector>
 #include <filesystem>
 
@@ -49,9 +50,9 @@ double luminance(const Vec3& color)
 	return color.dot(luminanceWeights);
 }
 
-Vec3 change_luminance(Vec3 c_in, float l_out)
+Vec3 change_luminance(Vec3 c_in, double l_out)
 {
-	float l_in = luminance(c_in);
+	double l_in = luminance(c_in);
 	return c_in * (l_out / l_in);
 }
 

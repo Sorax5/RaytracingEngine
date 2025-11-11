@@ -13,12 +13,11 @@ struct Transform {
 struct Material {
 	Vec3 color;
 	double shininess = 128.0;
+	double specular = 1.0;
 
-	Vec3 calculateSpecular(const Vec3& lightDir, const Vec3& viewDir, const Vec3& normal) const {
-		Vec3 reflectDir = (lightDir - normal * 2.0 * lightDir.dot(normal)).normalize();
-		double spec = std::pow(std::max(viewDir.dot(reflectDir), 0.0), shininess);
-		return Vec3(1, 1, 1) * spec;
-	}
+	double refractiveIndex = 1.5;
+	double transparency = 0.0;
+	Vec3 absorption = Vec3(0.0, 0.0, 0.0);
 };
 
 enum class HitType: unsigned char {
@@ -30,12 +29,10 @@ enum class HitType: unsigned char {
 struct HitInfo {
     double distance;
 	HitType type;
-    std::optional<std::size_t> index;
+    size_t index;
+	Material material;
+	Vec3 normal;
     Vec3 hitPoint;
-
-	bool hasHitSomething() const {
-		return type != HitType::NONE && index.has_value() && distance > 1e-4;
-	}
 
 	bool isCloserThan(const HitInfo& other) const {
 		return distance < other.distance;
@@ -46,22 +43,11 @@ struct HitInfo {
 	}
 
 	static HitInfo getClosestIntersection(const std::vector<HitInfo>& intersections) {
-		HitInfo closestIntersection;
-		closestIntersection.distance = std::numeric_limits<double>::max();
-		closestIntersection.type = HitType::NONE;
-		closestIntersection.index = std::nullopt;
-		closestIntersection.hitPoint = Vec3();
-
-		for (int i = 0; i < static_cast<int>(intersections.size()); i++)
+		HitInfo closestIntersection = intersections[0];
+		for (int i = 1; i < intersections.size(); i++)
 		{
 			HitInfo info = intersections[i];
-			if (!info.hasHitSomething())
-			{
-				continue;
-			}
-
-			// keep the smallest distance
-			if (info.distance < closestIntersection.distance)
+			if (closestIntersection.isCloserThan(info))
 			{
 				closestIntersection = info;
 			}
@@ -104,23 +90,23 @@ public:
 		return normal;
 	}
 
-	HitInfo getHitInfoAt(const Rayon& ray, size_t index) const {
-		HitInfo info;
-		info.distance = std::numeric_limits<double>::infinity();
-		info.type = HitType::NONE;
-		info.index = std::nullopt;
-		info.hitPoint = Vec3();
-
+	std::optional<HitInfo> getHitInfoAt(const Rayon& ray, size_t index) const {
 		std::optional<double> intersection = intersect(ray);
 		if (intersection.has_value())
 		{
-			info.hitPoint = ray.pointAtDistance(intersection.value());
-			info.distance = intersection.value();
-			info.type = HitType::SPHERE;
-			info.index = index;
+			Vec3 hitPoint = ray.pointAtDistance(intersection.value());
+			Vec3 normal = getNormalAt(hitPoint).value();
+			return HitInfo{
+				intersection.value(),
+				HitType::SPHERE,
+				index,
+				material,
+				normal,
+				hitPoint
+			};
 		}
 
-		return info;
+		return std::nullopt;
 	}
 
 	double getRadius() const { return radius; }
@@ -160,23 +146,23 @@ public:
 		return normal;
 	}
 
-	HitInfo getHitInfoAt(const Rayon& ray, int index) const {
-		HitInfo info;
-		info.distance = std::numeric_limits<double>::infinity();
-		info.type = HitType::NONE;
-		info.index = std::nullopt;
-		info.hitPoint = Vec3();
-
+	std::optional<HitInfo> getHitInfoAt(const Rayon& ray, size_t index) const {
 		std::optional<double> intersection = intersect(ray);
 		if (intersection.has_value())
 		{
-			info.hitPoint = ray.pointAtDistance(intersection.value());
-			info.distance = intersection.value();
-			info.type = HitType::PLANE;
-			info.index = static_cast<std::size_t>(index);
+			Vec3 hitPoint = ray.pointAtDistance(intersection.value());
+			Vec3 normal = getNormalAt().value();
+			return HitInfo{
+				intersection.value(),
+				HitType::PLANE,
+				index,
+				material,
+				normal,
+				hitPoint
+			};
 		}
 
-		return info;
+		return std::nullopt;
 	}
 
 	Vec3 getNormal() const { return normal; }

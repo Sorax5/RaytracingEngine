@@ -48,59 +48,29 @@ public:
 		return y * camera.width + x;
 	}
 
-	std::optional<Vec3> getNormalOfHit(const HitInfo& hit) const {
-		if (!hit.index.has_value()) return std::nullopt;
-		switch (hit.type) {
-			case HitType::SPHERE:
-				return spheres[hit.index.value()].getNormalAt(hit.hitPoint);
-			case HitType::PLANE:
-				return planes[hit.index.value()].getNormalAt();
-			default:
-				return std::nullopt;
-		}
-	}
-
-	Vec3 getColorOfHit(const HitInfo& hit) const {
-		if (!hit.index.has_value()) return Vec3(0,0,0);
-		switch (hit.type)
-		{
-			case HitType::SPHERE:
-				return spheres[hit.index.value()].getMaterial().color;
-			case HitType::PLANE:
-				return planes[hit.index.value()].getMaterial().color;
-			default:
-				return Vec3(0, 0, 0);
-		}
-	}
-
-	double getShininessOfHit(const HitInfo& hit) const {
-		if (!hit.index.has_value()) return 32.0;
-		switch (hit.type)
-		{
-			case HitType::SPHERE:
-				return spheres[hit.index.value()].getMaterial().shininess;
-			case HitType::PLANE:
-				return planes[hit.index.value()].getMaterial().shininess;
-			default:
-				return 32.0;
-		}
-	}
-
-	HitInfo intersectClosest(const Rayon& ray) const {
-		HitInfo closest{ std::numeric_limits<double>::infinity(), HitType::NONE, std::nullopt, Vec3() };
+	std::optional<HitInfo> intersectClosest(const Rayon& ray) const {
+		std::optional<HitInfo> closest = std::nullopt;
 
 		for (std::size_t sphereIndex = 0; sphereIndex < spheres.size(); ++sphereIndex) {
-			const Sphere& s = spheres[sphereIndex];
-			HitInfo hit = s.getHitInfoAt(ray, sphereIndex);
-			if (hit.hasHitSomething() && hit.isCloserThan(closest)) {
+			auto hitOpt = spheres[sphereIndex].getHitInfoAt(ray, sphereIndex);
+			if (!hitOpt.has_value()) {
+				continue;
+			}
+			HitInfo hit = hitOpt.value();
+
+			if (!closest.has_value() || hit.isCloserThan(closest.value())) {
 				closest = hit;
 			}
 		}
 
 		for (std::size_t planeIndex = 0; planeIndex < planes.size(); ++planeIndex) {
-			const Plane& p = planes[planeIndex];
-			HitInfo hit = p.getHitInfoAt(ray, planeIndex);
-			if (hit.hasHitSomething() && hit.isCloserThan(closest)) {
+			auto hitOpt = planes[planeIndex].getHitInfoAt(ray, planeIndex);
+			if (!hitOpt.has_value()) {
+				continue;
+			}
+			HitInfo hit = hitOpt.value();
+
+			if (!closest.has_value() || hit.isCloserThan(closest.value())) {
 				closest = hit;
 			}
 		}
@@ -115,8 +85,7 @@ public:
 		}
 
 		for (std::size_t sphereIndex = 0; sphereIndex < spheres.size(); ++sphereIndex) {
-			std::optional<double> intersection = spheres[sphereIndex].intersect(ray);
-			if (intersection) {
+			if (auto intersection = spheres[sphereIndex].intersect(ray)) {
 				const double dist = intersection.value();
 				if (dist > 0.0 && dist < maxDist) {
 					return true;
@@ -125,8 +94,7 @@ public:
 		}
 
 		for (std::size_t planeIndex = 0; planeIndex < planes.size(); ++planeIndex) {
-			std::optional<double> intersection = planes[planeIndex].intersect(ray);
-			if (intersection.has_value()) {
+			if (auto intersection = planes[planeIndex].intersect(ray)) {
 				double dist = intersection.value();
 				if (dist > 0.0 && dist < maxDist) {
 					return true;
@@ -137,10 +105,9 @@ public:
 		return false;
 	}
 
-	HitInfo CalculatePixelDepth(std::size_t x, std::size_t y, bool aa) const {
+	std::optional<HitInfo> CalculatePixelDepth(std::size_t x, std::size_t y, bool aa) const {
 		Rayon ray = camera.getRay(x, y, aa);
-		HitInfo closest = intersectClosest(ray);
-		return closest;
+		return intersectClosest(ray);
 	}
 
 	Vec3 GeneratePixelAt(int x, int y) const {
@@ -152,70 +119,13 @@ public:
 
 		for (int aa = 0; aa < aaCount; ++aa)
 		{
-			Vec3 color = Vec3(0, 0, 0);
-
-			HitInfo closest = CalculatePixelDepth(x, y, aa > 0 && aaCount > 1);
-			if (!closest.hasHitSomething()) {
-				continue;
+			bool isAAActive = aa > 0 && aaCount > 1;
+			
+			if (auto color = GenerateAntiAliasing(x, y, isAAActive, bias))
+			{
+				accumulatedColor += color.value();
+				samples += 1;
 			}
-
-			auto optNormal = getNormalOfHit(closest);
-			if (!optNormal.has_value()) {
-				continue;
-			}
-			Vec3 normal = optNormal.value();
-
-			Vec3 viewDir = (camera.position - closest.hitPoint).normalize();
-			double shininess = getShininessOfHit(closest);
-			Vec3 hitColor = getColorOfHit(closest);
-
-			Vec3 specularAccum = Vec3(0, 0, 0);
-			Vec3 incoming = Vec3(0, 0, 0);
-			for (std::size_t li = 0; li < lights.size(); ++li) {
-				const Light& light = lights[li];
-
-				Vec3 v = light.position - closest.hitPoint;
-				double nonSquaredLen = v.x * v.x + v.y * v.y + v.z * v.z;
-				static constexpr double EPS = 1e-12;
-				if (nonSquaredLen <= EPS * EPS) {
-					continue;
-				}
-
-				double ndotl_un = normal.dot(v);
-				if (ndotl_un <= 0.0) {
-					continue;
-				}
-
-				double invLen = 1.0 / std::sqrt(nonSquaredLen);
-				Vec3 Ldir = v * invLen;
-				double NdotL = ndotl_un * invLen;
-
-				double dist = 1.0 / invLen;
-				if (dist <= bias) {
-					continue;
-				}
-
-				Rayon shadowRay(closest.hitPoint + Ldir * bias, Ldir);
-				if (intersectAnyBefore(shadowRay, dist - bias)) {
-					continue;
-				}
-
-				Vec3 emitted = light.emitted();
-				double invDist2 = 1.0 / nonSquaredLen;
-				incoming += emitted * (invDist2 * NdotL);
-
-				Vec3 half = (Ldir + viewDir).normalize();
-				double NdotH = std::max(0.0, normal.dot(half));
-				if (NdotH > 0.0) {
-					double specFactor = std::pow(NdotH, shininess);
-					Vec3 specContribution = emitted * (invDist2 * specFactor);
-					specularAccum += specContribution;
-				}
-			}
-
-			color = hitColor * incoming + specularAccum;
-			accumulatedColor += color;
-			samples += 1;
 		}
 
 		if (samples > 0) {
@@ -226,6 +136,58 @@ public:
 		return Vec3(0, 0, 0);
 	}
 
+	std::optional<Vec3> GenerateAntiAliasing(size_t x, size_t y, bool isActive, double bias) const {
+		auto hitOpt = CalculatePixelDepth(x, y, isActive);
+		if (!hitOpt) {
+			return std::nullopt;
+		}
+		const HitInfo& hit = *hitOpt;
+
+		const Material& mat = hit.material;
+		const Vec3& normal = hit.normal;
+
+		Vec3 viewDir = (camera.position - hit.hitPoint).normalize();
+		double shininess = mat.shininess;
+
+		Vec3 specularAccum = Vec3(0, 0, 0);
+		Vec3 incoming = Vec3(0, 0, 0);
+
+		for (std::size_t li = 0; li < lights.size(); ++li) {
+			const Light& light = lights[li];
+
+			Vec3 Ldir = light.dirTo(hit.hitPoint).normalize();
+			double NdotL = std::max(0.0, normal.dot(Ldir));
+			if (NdotL <= 0.0) {
+				continue;
+			}
+
+			double dist = light.distanceTo(hit.hitPoint);
+			if (dist <= bias) {
+				continue;
+			}
+
+			Rayon shadowRay = light.shadowRayFrom(hit.hitPoint, bias);
+			if (intersectAnyBefore(shadowRay, dist - bias)) {
+				continue;
+			}
+
+			Vec3 diffuse = light.contributionFrom(dist, NdotL);
+			incoming += diffuse;
+
+			Vec3 half = (Ldir + viewDir).normalize();
+			double NdotH = std::max(0.0, normal.dot(half));
+			if(NdotH <= 0.0) {
+				continue;
+			}
+
+			double specFactor = std::pow(NdotH, shininess);
+			Vec3 specContribution = light.emitted() * (1.0 / (dist * dist)) * specFactor;
+			specularAccum += specContribution;
+		}
+
+		return mat.color * incoming + specularAccum;
+	}
+
 	std::vector<Vec3> GenerateImage() {
 		std::vector<Vec3> finalImage(camera.width * camera.height, Vec3(0, 0, 0));
 
@@ -233,29 +195,13 @@ public:
 		int height = static_cast<int>(camera.height);
 		const int totalPixels = width * height;
 
-		// Tile size pour tuilage 16x16
-		const int tileSize = 16;
-		int tilesX = (width + tileSize - 1) / tileSize;
-		int tilesY = (height + tileSize - 1) / tileSize;
-		const int totalTiles = tilesX * tilesY;
-
 		#ifdef _OPENMP
-		#pragma omp parallel for schedule(guided, 64) if(totalPixels > 16384)
+		#pragma omp parallel for schedule(dynamic) 
 		#endif
-		for (int t = 0; t < totalTiles; ++t) {
-			int tx = t % tilesX;
-			int ty = t / tilesX;
-			int startX = tx * tileSize;
-			int startY = ty * tileSize;
-			int endX = std::min(startX + tileSize, width);
-			int endY = std::min(startY + tileSize, height);
-
-			for (int y = startY; y < endY; ++y) {
-				int baseIdx = y * width;
-				for (int x = startX; x < endX; ++x) {
-					finalImage[baseIdx + x] = GeneratePixelAt(x, y);
-				}
-			}
+		for(int idx = 0; idx < totalPixels; ++idx) {
+			int x = idx % width;
+			int y = idx / width;
+			finalImage[idx] = GeneratePixelAt(x, y);
 		}
 
 		return finalImage;
