@@ -8,13 +8,12 @@
 #include <filesystem>
 
 #include <iostream>
-#include <stdio.h>
 #include <stdlib.h>
 
-#define WIDTH 1000
-#define HEIGHT 1000
+constexpr auto WIDTH = 1000;
+constexpr auto HEIGHT = 1000;
 
-Vec3 clampVec3(const Vec3& v, double minVal = 0.0, double maxVal = 1.0) {
+Vec3 ClampVec3(const Vec3& v, double minVal = 0.0, double maxVal = 1.0) {
 	return Vec3(
 		std::min(maxVal, std::max(minVal, v.x)),
 		std::min(maxVal, std::max(minVal, v.y)),
@@ -41,7 +40,7 @@ Vec3 aces_approx(Vec3 v)
 	float c = 2.43f;
 	float d = 0.59f;
 	float e = 0.14f;
-	return clampVec3((v * (a * v + b)) / (v * (c * v + d) + e), 0.0f, 1.0f);
+	return ClampVec3((v * (a * v + b)) / (v * (c * v + d) + e), 0.0f, 1.0f);
 }
 
 double luminance(const Vec3& color)
@@ -59,7 +58,7 @@ Vec3 change_luminance(Vec3 c_in, double l_out)
 
 Color toColor(const Vec3& pixel)
 {
-    Vec3 clamped = clampVec3(pixel);
+    Vec3 clamped = ClampVec3(pixel);
     return Color(
         static_cast<uint8_t>(clamped.x * 255.0),
         static_cast<uint8_t>(clamped.y * 255.0),
@@ -213,7 +212,7 @@ int main()
 	// record time of generation
 
 	auto gen_start = std::chrono::high_resolution_clock::now();
-	std::vector<Vec3> pixels = scene.GenerateImage();
+	std::vector<Vec3> pixels = scene.RenderImage();
 	auto gen_end = std::chrono::high_resolution_clock::now();
 
 	auto gen_ms = std::chrono::duration_cast<std::chrono::milliseconds>(gen_end - gen_start).count();

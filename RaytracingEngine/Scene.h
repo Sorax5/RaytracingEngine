@@ -17,7 +17,7 @@ private:
 
 	Camera camera;
 public:
-	Scene(Camera cam) : camera(cam) {
+	Scene(const Camera camera) : camera(camera) {
 		const std::size_t pixelCount = camera.width * camera.height;
 		this->spheres = std::vector<Sphere>();
 		this->planes = std::vector<Plane>();
@@ -25,25 +25,30 @@ public:
 	}
 
 	void addSphere(Sphere& sphere) {
-		spheres.emplace_back(std::move(sphere));
+		spheres.emplace_back(sphere);
 	}
 	void addPlane(Plane& plane) {
-		planes.emplace_back(std::move(plane));
+		planes.emplace_back(plane);
 	}
 	void addLight(Light& light) {
-		lights.emplace_back(std::move(light));
+		lights.emplace_back(light);
 	}
 
-	const std::vector<Sphere>& getSpheres() const { return spheres; }
-	const std::vector<Plane>& getPlanes() const { return planes; }
-	const std::vector<Light>& getLights() const { return lights; }
-
-	const Camera& getCamera() const { return camera; }
-
+	/// <summary>
+	/// Gets the linear index of a pixel based on its (x, y) coordinates.
+	/// </summary>
+	/// <param name="x">Vertical pixel coordinate.</param>
+	/// <param name="y">Horizontal pixel coordinate.</param>
+	/// <returns>index of the pixel in a linear array.</returns>
 	size_t getPixelIndex(size_t x, size_t y) const {
 		return y * camera.width + x;
 	}
 
+	/// <summary>
+	/// Gets the closest intersection of the ray with any object in the scene.
+	/// </summary>
+	/// <param name="ray">The ray to test for intersection.</param>
+	/// <returns>if an intersection occurs, returns HitInfo of the closest intersection; otherwise, returns std::nullopt.</returns>
 	std::optional<HitInfo> IntersectClosest(const Rayon& ray) const {
 		std::optional<HitInfo> closest = std::nullopt;
 
@@ -66,6 +71,12 @@ public:
 		return closest;
 	}
 
+	/// <summary>
+	/// Checks if the ray intersects any object in the scene before a given maximum distance.
+	/// </summary>
+	/// <param name="ray">The ray to test for intersection.</param>
+	/// <param name="maxDist">Maximum distance to check for intersections.</param>
+	/// <returns>if an intersection occurs before maxDist, returns true; otherwise, returns false.</returns>
 	bool IntersectAnyBefore(const Rayon& ray, const double maxDist) const {
 		if (spheres.empty() && planes.empty())
 		{
@@ -97,11 +108,24 @@ public:
 		return false;
 	}
 
+	/// <summary>
+	/// Calculates the depth information for a specific pixel by casting a ray from the camera through that pixel.
+	/// </summary>
+	/// <param name="x">Vertical pixel coordinate.</param>
+	/// <param name="y">Horizontal pixel coordinate.</param>
+	/// <param name="aa">Anti-aliasing flag.</param>
+	/// <returns>the HitInfo of the closest intersection if any; otherwise, std::nullopt.</returns>
 	std::optional<HitInfo> CalculatePixelDepth(const size_t x, const size_t y, const bool aa) const {
 		const Rayon ray = camera.getRay(x, y, aa);
 		return IntersectClosest(ray);
 	}
 
+	/// <summary>
+	/// Renders the color of a specific pixel by accumulating color contributions from multiple samples (for anti-aliasing).
+	/// </summary>
+	/// <param name="x">Vertical pixel coordinate.</param>
+	/// <param name="y">Horizontal pixel coordinate.</param>
+	/// <returns>A Vec3 representing the final color of the pixel.</returns>
 	Vec3 GeneratePixelAt(const int x, const int y) const {
 		auto accumulatedColor = Vec3{ 0,0,0 };
 		int samples = 0;
@@ -126,6 +150,14 @@ public:
 		return Vec3{ 0, 0, 0 };
 	}
 
+	/// <summary>
+	/// Calculates the color contribution for a single sample of a pixel, considering lighting and material properties.
+	/// </summary>
+	/// <param name="x">Vertical pixel coordinate.</param>
+	/// <param name="y">Horizontal pixel coordinate.</param>
+	/// <param name="isActive">indicates if anti-aliasing is active for this sample.</param>
+	/// <param name="bias">minimal offset to avoid self-shadowing artifacts.</param>
+	/// <returns>if the ray hits an object, returns the color contribution as Vec3; otherwise, std::nullopt.</returns>
 	std::optional<Vec3> GenerateAntiAliasing(const size_t x, const size_t y, const bool isActive, const double bias) const {
 		const auto hitOpt = CalculatePixelDepth(x, y, isActive);
 		if (!hitOpt) {
@@ -176,7 +208,11 @@ public:
 		return mat.color * incoming + specularAccum;
 	}
 
-	std::vector<Vec3> GenerateImage() const {
+	/// <summary>
+	/// Renders the entire scene by generating the color for each pixel in the camera's view.
+	/// </summary>
+	/// <returns>The final image as a vector of Vec3 colors for each pixel.</returns>
+	std::vector<Vec3> RenderImage() const {
 		std::vector<Vec3> finalImage(camera.width * camera.height, Vec3(0, 0, 0));
 
 		const int width = static_cast<int>(camera.width);
