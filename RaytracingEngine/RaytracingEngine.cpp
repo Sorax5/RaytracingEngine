@@ -168,11 +168,34 @@ int main()
 	Camera camera = Camera(origin, 500, WIDTH, HEIGHT, 0, 200);
 	Scene scene = Scene(camera);
 
-	Sphere sphere1(3, Vec3(-4, 0, 12), Vec3(1, 0, 0));
-	Sphere sphere2(3, Vec3(4, 0, 15), Vec3(0, 0, 1));
+	Material redMat = Material();
+	redMat.color = Vec3(1, 0, 0);
+	redMat.refractiveIndex = 1.01;
+	redMat.shininess = 128.0;
+	redMat.specular = 0.5;
+	redMat.transparency = 0.9;
+
+	Material greenMat = Material();
+	greenMat.color = Vec3(1, 1, 1);
+	greenMat.refractiveIndex = 1.5;
+	greenMat.shininess = 512.0;
+	greenMat.specular = 0.05;
+	greenMat.transparency = 0.97;
+
+	Material blueMat = Material();
+	blueMat.color = Vec3(0, 0, 1);
+	blueMat.refractiveIndex = 1e3;
+	blueMat.shininess = 128.0;
+	blueMat.specular = 0.5;
+	blueMat.transparency = 0.9;
+
+	Sphere sphere1(3, Vec3(-14, 0, 9), redMat);
+	Sphere sphere2(5, Vec3(5, 0, 14), greenMat);
+	//Sphere sphere3(4, Vec3(10, 0, 8), blueMat);
 
 	scene.addSphere(sphere1);
 	scene.addSphere(sphere2);
+	//scene.addSphere(sphere3);
 
 	double distance = 15;
 
@@ -196,20 +219,28 @@ int main()
 	{
 		Vec3 dir = normalDirections[i];
 		Vec3 col = planeColors[i];
+		Material mat = Material();
+		mat.transparency = 0.0;
+		mat.specular = 0.1;
+		mat.color = col;
+		mat.shininess = 0.128;
+		mat.refractiveIndex = 1.5;
 
-        Plane plane(dir * -distance, dir, col);
+        Plane plane(dir * -distance, dir, mat);
         scene.addPlane(plane);
 	}
 
-	//scene.addLight(Light(Vec3(10, 10, 5), Vec3(0, 1, 1), 50));
-	//scene.addLight(Light(Vec3(-10, -10, 5), Vec3(1, 0, 1), 50));
+	auto firstLight = Light(Vec3(10, 10, 5), Vec3(0, 1, 1), 50);
+	auto secondLight = Light(Vec3(-10, 10, 5), Vec3(1, 1, 0), 50);
+
+	/*scene.addLight(firstLight);
+	scene.addLight(secondLight);*/
 
 	Light light1(Vec3(0, 0, 0), Vec3(1, 1, 1), 100);
 	Light light2(Vec3(0, 0, 8), Vec3(1, 1, 1), 75);
 	scene.addLight(light1);
 	scene.addLight(light2);
 
-	// record time of generation
 
 	auto gen_start = std::chrono::high_resolution_clock::now();
 	std::vector<Vec3> pixels = scene.RenderImage();
