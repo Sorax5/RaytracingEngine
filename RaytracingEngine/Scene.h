@@ -11,6 +11,7 @@
 
 class Scene {
 private:
+
     std::vector<Sphere> spheres;
     std::vector<Plane> planes;
     std::vector<Light> lights;
@@ -32,6 +33,7 @@ private:
         double traveled = 0.0;
         Rayon r = ray;
         int safety = 64;
+
 
         while (safety-- > 0 && T > 1e-4 && traveled < maxDist) {
             auto hitOpt = IntersectClosest(r);
@@ -71,8 +73,8 @@ private:
             normal = -normal;
         }
 
-        auto diffuseAccum = Vec3{0,0,0};
-        auto specularAccum = Vec3{0,0,0};
+        auto diffuseAccumulation = Vec3{0,0,0};
+        auto specularAccumlation = Vec3{0,0,0};
 
         for (const auto& light : lights) {
             const Vec3 lightToHit = light.dirTo(hit.hitPoint);
@@ -95,20 +97,20 @@ private:
 	            continue;
             }
 
-            diffuseAccum += light.contributionFrom(distanceToLight, normalDotLightHit) * transmittance;
+            diffuseAccumulation += light.contributionFrom(distanceToLight, normalDotLightHit) * transmittance;
 
             if (material.transparency <= 0.0 && material.specular > 0.0) {
                 Vec3 halfVector = (lightToHit + viewDir).normalize();
                 double NdotH = std::max(0.0, normal.dot(halfVector));
                 if (NdotH > 0.0) {
-                    double specFactor = std::pow(NdotH, material.shininess);
-                    specularAccum += light.contributionFrom(distanceToLight, specFactor) * transmittance;
+                    const double specFactor = std::pow(NdotH, material.shininess);
+                    specularAccumlation += light.contributionFrom(distanceToLight, specFactor) * transmittance;
                 }
             }
         }
 
-        Vec3 diffuse = material.color * diffuseAccum;
-        Vec3 specular = specularAccum * material.specular;
+        Vec3 diffuse = material.color * diffuseAccumulation;
+        Vec3 specular = specularAccumlation * material.specular;
         return diffuse + specular;
     }
 
@@ -125,16 +127,16 @@ private:
         const HitInfo hit = hitOpt.value();
         const Material& material = hit.material;
 
-        const Vec3 Incoming = traceRay.direction.normalize();
-        const bool frontFace = hit.normal.dot(Incoming) < 0.0;
+        const Vec3 incoming = traceRay.direction.normalize();
+        const bool frontFace = hit.normal.dot(incoming) < 0.0;
         const Vec3 normal = frontFace ? hit.normal : -hit.normal;
-        const Vec3 viewDir = -Incoming;
+        const Vec3 viewDir = -incoming;
         const double cosTheta = std::max(0.0, normal.dot(viewDir));
 
-        const double etaI = 1.0;
+        constexpr double etaI = 1.0;
         const double etaT = material.refractiveIndex;
-        const double F0 = std::pow((etaT - etaI) / (etaT + etaI), 2.0);
-        double fresnelAmount = fresnel(cosTheta, F0);
+        const double f0 = std::pow((etaT - etaI) / (etaT + etaI), 2.0);
+        double fresnelAmount = fresnel(cosTheta, f0);
 
         double transparency = std::clamp(material.transparency, 0.0, 1.0);
 
@@ -147,9 +149,8 @@ private:
 
         if (transparency > 0.0) {
             const double eta = frontFace ? (etaI / etaT) : (etaT / etaI);
-            Vec3 refractDir = Incoming.refract(normal, eta);
 
-            if (refractDir.length() > bias) {
+            if (auto refractDir = incoming.refract(normal, eta); refractDir.length() > bias) {
                 refractDir = refractDir.normalize();
                 Rayon refractRay{ hit.hitPoint + refractDir * (bias * 1e2), refractDir };
                 if (auto tc = TraceRay(refractRay, recursionAmount + 1, bias)) {
@@ -161,7 +162,7 @@ private:
         }
 
     	if (auto reflectiveness = (transparency > 0.0) ? fresnelAmount : material.specular; reflectiveness > bias) {
-            Vec3 reflectDir = Incoming.reflect(normal).normalize();
+            Vec3 reflectDir = incoming.reflect(normal).normalize();
             Rayon reflectRay{ hit.hitPoint + reflectDir * bias, reflectDir };
             if (auto rc = TraceRay(reflectRay, recursionAmount + 1, bias)) {
                 finalLight += rc.value() * reflectiveness;
@@ -171,18 +172,18 @@ private:
         return finalLight;
     }
 public:
-    Scene(const Camera camera) : camera(camera) {
+    explicit Scene(const Camera& camera) : camera(camera) {
         const size_t pixelCount = camera.width * camera.height;
         this->spheres = std::vector<Sphere>();
         this->planes = std::vector<Plane>();
         this->lights = std::vector<Light>();
     }
 
-    void addSphere(Sphere& sphere) { spheres.emplace_back(sphere); }
-    void addPlane(Plane& plane) { planes.emplace_back(plane); }
-    void addLight(Light& light) { lights.emplace_back(light); }
+    void AddSphere(Sphere& sphere) { spheres.emplace_back(sphere); }
+    void AddPlane(Plane& plane) { planes.emplace_back(plane); }
+    void AddLight(Light& light) { lights.emplace_back(light); }
 
-    size_t getPixelIndex(size_t x, size_t y) const {
+    size_t GetPixelIndex(const size_t x, const size_t y) const {
         return y * camera.width + x;
     }
 
@@ -190,7 +191,7 @@ public:
         std::optional<HitInfo> closest = std::nullopt;
 
         for (size_t sphereIndex = 0; sphereIndex < spheres.size(); ++sphereIndex) {
-            if (auto hitOpt = spheres[sphereIndex].getHitInfoAt(ray, sphereIndex); hitOpt) {
+            if (auto hitOpt = spheres[sphereIndex].GetHitInfoAt(ray, sphereIndex); hitOpt) {
                 if (HitInfo hit = hitOpt.value(); !closest.has_value() || hit.isCloserThan(closest.value())) {
                     closest = hit;
                 }
@@ -214,7 +215,7 @@ public:
         }
 
         for (auto sphere : spheres) {
-            if (auto intersection = sphere.intersect(ray)) {
+            if (auto intersection = sphere.Intersect(ray)) {
                 if (const double dist = intersection.value(); dist > 0.0 && dist < maxDist) {
                     return true;
                 }
@@ -241,11 +242,12 @@ public:
         auto accumulatedColor = Vec3{ 0,0,0 };
         int samples = 0;
 
-        const double bias = 1e-6;
         const int aaCount = camera.antiAliasingAmount;
 
-        for (int aa = 0; aa < aaCount; ++aa) {
-            if (auto color = GenerateAntiAliasing(x, y, aa > 0 && aaCount > 1, bias)) {
+        for (int aa = 0; aa < aaCount; ++aa)
+        {
+	        constexpr double bias = 1e-6;
+	        if (auto color = GenerateAntiAliasing(x, y, aa > 0 && aaCount > 1, bias)) {
                 accumulatedColor += color.value();
                 samples += 1;
             }

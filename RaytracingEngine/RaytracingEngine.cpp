@@ -193,9 +193,9 @@ int main()
 	Sphere sphere2(5, Vec3(5, 0, 14), mirror);
 	//Sphere sphere3(4, Vec3(10, 0, 8), blueMat);
 
-	scene.addSphere(sphere1);
-	scene.addSphere(sphere2);
-	//scene.addSphere(sphere3);
+	scene.AddSphere(sphere1);
+	scene.AddSphere(sphere2);
+	//scene.AddSphere(sphere3);
 
 	double distance = 15;
 
@@ -227,19 +227,19 @@ int main()
 		mat.refractiveIndex = 1.5;
 
         Plane plane(dir * -distance, dir, mat);
-        scene.addPlane(plane);
+        scene.AddPlane(plane);
 	}
 
 	auto firstLight = Light(Vec3(10, 10, 5), Vec3(0, 1, 1), 50);
 	auto secondLight = Light(Vec3(-10, 10, 5), Vec3(1, 1, 0), 50);
 
-	/*scene.addLight(firstLight);
-	scene.addLight(secondLight);*/
+	/*scene.AddLight(firstLight);
+	scene.AddLight(secondLight);*/
 
 	Light light1(Vec3(0, 3, 0), Vec3(1, 1, 1), 250);
 	//Light light2(Vec3(0, 0, 8), Vec3(1, 1, 1), 75);
-	scene.addLight(light1);
-	//scene.addLight(light2);
+	scene.AddLight(light1);
+	//scene.AddLight(light2);
 
 
 	auto gen_start = std::chrono::high_resolution_clock::now();

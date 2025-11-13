@@ -25,8 +25,8 @@ enum class HitType: unsigned char {
 };
 
 struct HitInfo {
-    double distance;
     HitType type;
+    double distance;
     size_t index;
     Material material;
     Vec3 normal;
@@ -61,14 +61,14 @@ private:
     Transform transform;
     Material material;
 public:
-    Sphere(const double r = 1.0, const Vec3& pos = Vec3(0, 0, 0), const Material& mat = Material()) : radius(r) {
+    explicit Sphere(const double r = 1.0, const Vec3& pos = Vec3(0, 0, 0), const Material& mat = Material()) : radius(r) {
         transform.position = pos;
         transform.rotation = Vec3(0, 0, 0);
         transform.scale = Vec3(1, 1, 1);
         this->material = mat;
     }
 
-    std::optional<double> intersect(const Rayon& ray) const {
+    std::optional<double> Intersect(const Rayon& ray) const {
         const Vec3 oc = ray.origin - transform.position;
 
         const double a = ray.direction.dot(ray.direction);
@@ -96,23 +96,23 @@ public:
         return t;
     }
 
-    std::optional<Vec3> getNormalAt(const Vec3& point) const {
+    std::optional<Vec3> GetNormalAt(const Vec3& point) const {
         return (point - transform.position).normalize();
     }
 
-    std::optional<HitInfo> getHitInfoAt(const Rayon& ray, const size_t index) const {
-        if (const auto intersectionOpt = intersect(ray); intersectionOpt) {
+    std::optional<HitInfo> GetHitInfoAt(const Rayon& ray, const size_t index) const {
+        if (const auto intersectionOpt = Intersect(ray); intersectionOpt) {
             const double intersection = intersectionOpt.value();
 
             const Vec3 hitPoint = ray.pointAtDistance(intersection);
-            const Vec3 normal = getNormalAt(hitPoint).value();
+            const Vec3 normal = GetNormalAt(hitPoint).value();
             return HitInfo{
-                intersection,
-                HitType::SPHERE,
-                index,
-                material,
-                normal,
-                hitPoint
+				.type = HitType::SPHERE,
+				.distance = intersection,
+				.index = index,
+				.material = material,
+				.normal = normal,
+				.hitPoint = hitPoint
             };
         }
 
@@ -165,15 +165,13 @@ public:
         if (const auto intersectionOpt = intersect(ray); intersectionOpt)
         {
             const double intersection = intersectionOpt.value();
-            const Vec3 hitPoint = ray.pointAtDistance(intersection);
-            const Vec3 normal = getNormalAt().value();
-            return HitInfo{
-                intersection,
-                HitType::PLANE,
-                index,
-                material,
-                normal,
-                hitPoint
+            return HitInfo {
+				.type = HitType::PLANE,
+				.distance = intersection,
+				.index = index,
+				.material = material,
+				.normal = getNormalAt().value(),
+				.hitPoint = ray.pointAtDistance(intersection)
             };
         }
 
