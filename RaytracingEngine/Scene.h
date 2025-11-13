@@ -16,7 +16,7 @@ private:
     std::vector<Light> lights;
 
     Camera camera;
-    int maxRecursion = 5;
+    int maxRecursion = 10;
 
     static double fresnel(const double cosTheta, const double F0) {
         return F0 + (1.0 - F0) * std::pow(1.0 - cosTheta, 5.0);
@@ -27,7 +27,7 @@ private:
         return Vec3(1.0, 1.0, 1.0) * (1.0 - t) + Vec3(0.5, 0.7, 1.0) * t;
     }
 
-    double computeTransmittance(const Rayon& ray, double maxDist, const double bias) const {
+    double computeTransmittance(const Rayon& ray, const double maxDist, const double bias) const {
         double T = 1.0;
         double traveled = 0.0;
         Rayon r = ray;
@@ -35,7 +35,10 @@ private:
 
         while (safety-- > 0 && T > 1e-4 && traveled < maxDist) {
             auto hitOpt = IntersectClosest(r);
-            if (!hitOpt) break;
+            if (!hitOpt)
+            {
+                break;
+            }
 
             const HitInfo& hit = *hitOpt;
             const double t = hit.distance;
@@ -44,7 +47,10 @@ private:
                 continue;
             }
 
-            if (traveled + t >= maxDist) break;
+            if (traveled + t >= maxDist)
+            {
+                break;
+            }
 
             const double tr = std::clamp(hit.material.transparency, 0.0, 1.0);
             T *= tr;
@@ -59,34 +65,44 @@ private:
 
     Vec3 directLightning(const HitInfo& hit, const Vec3& viewDir, const double bias) const {
         const Material& material = hit.material;
+
         Vec3 normal = hit.normal;
         if (normal.dot(viewDir) < 0.0) {
             normal = -normal;
         }
 
-        Vec3 diffuseAccum = Vec3{0,0,0};
-        Vec3 specularAccum = Vec3{0,0,0};
+        auto diffuseAccum = Vec3{0,0,0};
+        auto specularAccum = Vec3{0,0,0};
 
         for (const auto& light : lights) {
             const Vec3 lightToHit = light.dirTo(hit.hitPoint);
-            const double NdotL = std::max(0.0, normal.dot(lightToHit));
-            if (NdotL <= 0.0) continue;
+            const double normalDotLightHit = std::max(0.0, normal.dot(lightToHit));
+            if (normalDotLightHit <= 0.0)
+            {
+	            continue;
+            }
 
-            const double distL = light.distanceTo(hit.hitPoint);
-            if (distL <= bias) continue;
+            const double distanceToLight = light.distanceTo(hit.hitPoint);
+            if (distanceToLight <= bias)
+            {
+	            continue;
+            }
 
             Rayon shadowRay{ hit.hitPoint + lightToHit * bias, lightToHit };
-            const double transmittance = computeTransmittance(shadowRay, distL - bias, bias);
-            if (transmittance <= 1e-6) continue;
+            const double transmittance = computeTransmittance(shadowRay, distanceToLight - bias, bias);
+            if (transmittance <= bias)
+            {
+	            continue;
+            }
 
-            diffuseAccum += light.contributionFrom(distL, NdotL) * transmittance;
+            diffuseAccum += light.contributionFrom(distanceToLight, normalDotLightHit) * transmittance;
 
             if (material.transparency <= 0.0 && material.specular > 0.0) {
                 Vec3 halfVector = (lightToHit + viewDir).normalize();
                 double NdotH = std::max(0.0, normal.dot(halfVector));
                 if (NdotH > 0.0) {
                     double specFactor = std::pow(NdotH, material.shininess);
-                    specularAccum += light.contributionFrom(distL, specFactor) * transmittance;
+                    specularAccum += light.contributionFrom(distanceToLight, specFactor) * transmittance;
                 }
             }
         }
@@ -98,14 +114,15 @@ private:
 
     std::optional<Vec3> TraceRay(const Rayon& traceRay, int recursionAmount, const double bias) const {
         if (recursionAmount >= maxRecursion) {
-            return backgroundColor(traceRay);
+			return backgroundColor(traceRay); // ciel
         }
+
         const auto hitOpt = IntersectClosest(traceRay);
         if (!hitOpt) {
             return backgroundColor(traceRay);
         }
 
-        const HitInfo hit = *hitOpt;
+        const HitInfo hit = hitOpt.value();
         const Material& material = hit.material;
 
         const Vec3 Incoming = traceRay.direction.normalize();
@@ -117,7 +134,7 @@ private:
         const double etaI = 1.0;
         const double etaT = material.refractiveIndex;
         const double F0 = std::pow((etaT - etaI) / (etaT + etaI), 2.0);
-        double F = fresnel(cosTheta, F0);
+        double fresnelAmount = fresnel(cosTheta, F0);
 
         double transparency = std::clamp(material.transparency, 0.0, 1.0);
 
@@ -131,22 +148,22 @@ private:
         if (transparency > 0.0) {
             const double eta = frontFace ? (etaI / etaT) : (etaT / etaI);
             Vec3 refractDir = Incoming.refract(normal, eta);
-            if (refractDir.length() > 1e-12) {
+
+            if (refractDir.length() > bias) {
                 refractDir = refractDir.normalize();
-                Rayon refrRay{ hit.hitPoint + refractDir * (bias * 1e2), refractDir };
-                if (auto tc = TraceRay(refrRay, recursionAmount + 1, bias)) {
-                    finalLight += tc.value() * (transparency * (1.0 - F));
+                Rayon refractRay{ hit.hitPoint + refractDir * (bias * 1e2), refractDir };
+                if (auto tc = TraceRay(refractRay, recursionAmount + 1, bias)) {
+                    finalLight += tc.value() * (transparency * (1.0 - fresnelAmount));
                 }
             } else {
-                F = 1.0;
+				fresnelAmount = 1.0; // Total reflection interne
             }
         }
 
-        double reflectiveness = (transparency > 0.0) ? F : material.specular;
-        if (reflectiveness > 1e-12) {
-            Vec3 reflDir = Incoming.reflect(normal).normalize();
-            Rayon reflRay{ hit.hitPoint + reflDir * bias, reflDir };
-            if (auto rc = TraceRay(reflRay, recursionAmount + 1, bias)) {
+    	if (auto reflectiveness = (transparency > 0.0) ? fresnelAmount : material.specular; reflectiveness > bias) {
+            Vec3 reflectDir = Incoming.reflect(normal).normalize();
+            Rayon reflectRay{ hit.hitPoint + reflectDir * bias, reflectDir };
+            if (auto rc = TraceRay(reflectRay, recursionAmount + 1, bias)) {
                 finalLight += rc.value() * reflectiveness;
             }
         }
@@ -155,7 +172,7 @@ private:
     }
 public:
     Scene(const Camera camera) : camera(camera) {
-        const std::size_t pixelCount = camera.width * camera.height;
+        const size_t pixelCount = camera.width * camera.height;
         this->spheres = std::vector<Sphere>();
         this->planes = std::vector<Plane>();
         this->lights = std::vector<Light>();
@@ -198,7 +215,7 @@ public:
 
         for (auto sphere : spheres) {
             if (auto intersection = sphere.intersect(ray)) {
-                if (const double dist = *intersection; dist > 0.0 && dist < maxDist) {
+                if (const double dist = intersection.value(); dist > 0.0 && dist < maxDist) {
                     return true;
                 }
             }
@@ -206,7 +223,7 @@ public:
 
         for (auto plane : planes) {
             if (auto intersection = plane.intersect(ray)) {
-                if (const double dist = *intersection; dist > 0.0 && dist < maxDist) {
+                if (const double dist = intersection.value(); dist > 0.0 && dist < maxDist) {
                     return true;
                 }
             }

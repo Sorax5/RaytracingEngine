@@ -44,7 +44,6 @@ struct HitInfo {
         HitInfo closestIntersection = intersections[0];
         for (auto info : intersections)
         {
-            // Correction: choisir l'intersection la plus proche
             if (info.isCloserThan(closestIntersection))
             {
                 closestIntersection = info;
@@ -126,7 +125,7 @@ public:
     Material getMaterial() const { return material; }
     Transform getTransform() const { return transform; }
 
-    static Sphere getHitObject(const HitInfo hit, const std::vector<Sphere> spheres)
+    static Sphere getHitObject(const HitInfo& hit, const std::vector<Sphere>& spheres)
     {
         return spheres[hit.index];
     }
@@ -186,7 +185,7 @@ public:
     Material getMaterial() const { return material; }
     Transform getTransform() const { return transform; }
 
-    static Plane getHitObject(const HitInfo hit, const std::vector<Plane> planes)
+    static Plane getHitObject(const HitInfo& hit, const std::vector<Plane>& planes)
     {
         return planes[hit.index];
     }

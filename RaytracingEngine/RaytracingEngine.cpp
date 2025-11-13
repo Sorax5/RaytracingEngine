@@ -170,27 +170,27 @@ int main()
 
 	Material redMat = Material();
 	redMat.color = Vec3(1, 0, 0);
-	redMat.refractiveIndex = 1.01;
-	redMat.shininess = 128.0;
-	redMat.specular = 0.5;
-	redMat.transparency = 0.9;
+	redMat.refractiveIndex = 1.5;
+	redMat.shininess = 64.0;
+	redMat.specular = 0.9;
+	redMat.transparency = 0.5;
 
-	Material greenMat = Material();
-	greenMat.color = Vec3(1, 1, 1);
-	greenMat.refractiveIndex = 1.5;
-	greenMat.shininess = 512.0;
-	greenMat.specular = 0.05;
-	greenMat.transparency = 0.97;
+	Material mirror = Material();
+	mirror.color = Vec3(0, 0, 0);
+	mirror.refractiveIndex = 1.000000000000000001;
+	mirror.shininess = 1024.0;
+	mirror.specular = 0.99999999;
+	mirror.transparency = 0.0;
 
-	Material blueMat = Material();
+	/*Material blueMat = Material();
 	blueMat.color = Vec3(0, 0, 1);
 	blueMat.refractiveIndex = 1e3;
 	blueMat.shininess = 128.0;
 	blueMat.specular = 0.5;
-	blueMat.transparency = 0.9;
+	blueMat.transparency = 0.9;*/
 
 	Sphere sphere1(3, Vec3(-14, 0, 9), redMat);
-	Sphere sphere2(5, Vec3(5, 0, 14), greenMat);
+	Sphere sphere2(5, Vec3(5, 0, 14), mirror);
 	//Sphere sphere3(4, Vec3(10, 0, 8), blueMat);
 
 	scene.addSphere(sphere1);
@@ -215,13 +215,13 @@ int main()
 		Vec3(1, 1, 1)
 	};
 
-	for (int i = 0; i < normalDirections.size(); i++)
+	for (size_t i = 0; i < normalDirections.size(); i++)
 	{
 		Vec3 dir = normalDirections[i];
 		Vec3 col = planeColors[i];
 		Material mat = Material();
 		mat.transparency = 0.0;
-		mat.specular = 0.1;
+		mat.specular = 0.01;
 		mat.color = col;
 		mat.shininess = 0.128;
 		mat.refractiveIndex = 1.5;
@@ -236,10 +236,10 @@ int main()
 	/*scene.addLight(firstLight);
 	scene.addLight(secondLight);*/
 
-	Light light1(Vec3(0, 0, 0), Vec3(1, 1, 1), 100);
-	Light light2(Vec3(0, 0, 8), Vec3(1, 1, 1), 75);
+	Light light1(Vec3(0, 3, 0), Vec3(1, 1, 1), 250);
+	//Light light2(Vec3(0, 0, 8), Vec3(1, 1, 1), 75);
 	scene.addLight(light1);
-	scene.addLight(light2);
+	//scene.addLight(light2);
 
 
 	auto gen_start = std::chrono::high_resolution_clock::now();
@@ -267,7 +267,7 @@ int main()
 	for (size_t i = 0; i < allTonemapped.size(); i++) {
 		std::string tmFilename = tonemapNames[i];
 		writePPM(tmFilename + ".ppm", allTonemapped[i], WIDTH, HEIGHT);
-		std::string command = "ffmpeg -y -f image2 -i \"" + tmFilename + ".ppm\" \"" + tmFilename + ".png\"";
+		std::string command = "ffmpeg -y -loglevel error -i \"" + tmFilename + ".ppm\" -frames:v 1 \"" + tmFilename + ".png\"";
 		int rc = std::system(command.c_str());
 		if (rc == 0 && std::filesystem::exists(tmFilename + ".png")) {
 			std::cout << "Conversion PPM -> PNG réussie :" << tmFilename << ".png\n";

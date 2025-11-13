@@ -80,7 +80,7 @@ struct Rayon {
     Vec3 origin;
     Vec3 direction;
     Rayon(const Vec3& o = {}, const Vec3& d = {}) : origin(o), direction(d) {}
-    Vec3 pointAtDistance(double t) const noexcept { return origin + direction * t; }
+    Vec3 pointAtDistance(const double t) const noexcept { return origin + direction * t; }
 };
 
 struct Camera {
@@ -98,13 +98,13 @@ struct Camera {
         : position(position), forward{0,0,1}, width(width), height(height), focal(focal), farPlaneDistance(farPlaneDistance), nearPlaneDistance(nearPlaneDistance) {}
 
     Rayon getRay(const size_t pixelX, const size_t pixelY, const bool aa) const {
-        double sx = (static_cast<double>(pixelX) ) - static_cast<double>(width) / 2.0;
-        double sy = static_cast<double>(height) / 2.0 - (static_cast<double>(pixelY));
+        auto sx = (static_cast<double>(pixelX) ) - static_cast<double>(width) / 2.0;
+        auto sy = static_cast<double>(height) / 2.0 - (static_cast<double>(pixelY));
 
-		double jitterX = 0.0;
-		double jitterY = 0.0;
+		auto jitterX = 0.0;
+		auto jitterY = 0.0;
 		if (aa) {
-			const double invAA = 1.0 / static_cast<double>(aa);
+			const auto invAA = 1.0 / static_cast<double>(aa);
 
 			// suggestion Chatgpt : use thread_local random generators to avoid contention in multithreaded scenarios
 			thread_local static std::mt19937 gen((std::random_device())());
@@ -116,8 +116,8 @@ struct Camera {
 		sx += jitterX;
 		sy += jitterY;
 
-        const Vec3 screenPoint = Vec3(sx, sy, position.z + focal);
-        const Vec3 dir = (screenPoint - position).normalize();
+        const auto screenPoint = Vec3(sx, sy, position.z + focal);
+        const auto dir = (screenPoint - position).normalize();
         return Rayon{ position, dir };
     }
 };
