@@ -23,7 +23,8 @@ struct Material {
 enum class HitType: unsigned char {
 	NONE,
 	SPHERE,
-	PLANE
+	PLANE,
+	TRIANGLE
 };
 
 struct HitInfo {
@@ -170,4 +171,64 @@ public:
 	void setNormal(const Vec3& norm) { normal = norm.normalize(); }
 	Material getMaterial() const { return material; }
 	Transform getTransform() const { return transform; }
+};
+
+class Triangle {
+private:
+	Vec3 v0, v1, v2;
+	Material material;
+public:
+	Triangle(const Vec3& vertex0, const Vec3& vertex1, const Vec3& vertex2, const Vec3& col = Vec3(1, 1, 1))
+		: v0(vertex0), v1(vertex1), v2(vertex2) {
+		material.color = col;
+	}
+
+	std::optional<double> intersect(const Rayon& ray) const {
+		const double EPSILON = 1e-6;
+		Vec3 edge1 = v1 - v0;
+		Vec3 edge2 = v2 - v0;
+		Vec3 h = ray.direction.cross(edge2);
+		double a = edge1.dot(h);
+		if (a > -EPSILON && a < EPSILON)
+			return std::nullopt;
+		double f = 1.0 / a;
+		Vec3 s = ray.origin - v0;
+		double u = f * s.dot(h);
+		if (u < 0.0 || u > 1.0)
+			return std::nullopt;
+		Vec3 q = s.cross(edge1);
+		double v = f * ray.direction.dot(q);
+		if (v < 0.0 || u + v > 1.0)
+			return std::nullopt;
+		double t = f * edge2.dot(q);
+		if (t > EPSILON)
+			return { t };
+		else
+			return std::nullopt;
+	}
+
+	std::optional<Vec3> getNormalAt() const {
+		Vec3 normal = (v1 - v0).cross(v2 - v0).normalize();
+		return normal;
+	}
+
+	std::optional<HitInfo> getHitInfoAt(const Rayon& ray, size_t index) const {
+		std::optional<double> intersection = intersect(ray);
+		if (intersection.has_value())
+		{
+			Vec3 hitPoint = ray.pointAtDistance(intersection.value());
+			Vec3 normal = getNormalAt().value();
+			return HitInfo{
+				intersection.value(),
+				HitType::TRIANGLE,
+				index,
+				material,
+				normal,
+				hitPoint
+			};
+		}
+		return std::nullopt;
+	}
+
+	Material getMaterial() const { return material; }
 };
