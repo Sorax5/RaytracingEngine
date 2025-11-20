@@ -8,13 +8,12 @@
 #include <filesystem>
 
 #include <iostream>
-#include <stdio.h>
 #include <stdlib.h>
 
-#define WIDTH 1000
-#define HEIGHT 1000
+constexpr auto WIDTH = 1000;
+constexpr auto HEIGHT = 1000;
 
-Vec3 clampVec3(const Vec3& v, double minVal = 0.0, double maxVal = 1.0) {
+Vec3 ClampVec3(const Vec3& v, double minVal = 0.0, double maxVal = 1.0) {
 	return Vec3(
 		std::min(maxVal, std::max(minVal, v.x)),
 		std::min(maxVal, std::max(minVal, v.y)),
@@ -41,7 +40,7 @@ Vec3 aces_approx(Vec3 v)
 	float c = 2.43f;
 	float d = 0.59f;
 	float e = 0.14f;
-	return clampVec3((v * (a * v + b)) / (v * (c * v + d) + e), 0.0f, 1.0f);
+	return ClampVec3((v * (a * v + b)) / (v * (c * v + d) + e), 0.0f, 1.0f);
 }
 
 double luminance(const Vec3& color)
@@ -59,7 +58,7 @@ Vec3 change_luminance(Vec3 c_in, double l_out)
 
 Color toColor(const Vec3& pixel)
 {
-    Vec3 clamped = clampVec3(pixel);
+    Vec3 clamped = ClampVec3(pixel);
     return Color(
         static_cast<uint8_t>(clamped.x * 255.0),
         static_cast<uint8_t>(clamped.y * 255.0),
@@ -169,11 +168,34 @@ int main()
 	Camera camera = Camera(origin, 500, WIDTH, HEIGHT, 0, 200);
 	Scene scene = Scene(camera);
 
-	Sphere sphere1(3, Vec3(-4, 0, 12), Vec3(1, 0, 0));
-	Sphere sphere2(3, Vec3(4, 0, 15), Vec3(0, 0, 1));
+	Material redMat = Material();
+	redMat.color = Vec3(1, 0, 0);
+	redMat.refractiveIndex = 1.5;
+	redMat.shininess = 64.0;
+	redMat.specular = 0.9;
+	redMat.transparency = 0.5;
 
-	scene.addSphere(sphere1);
-	scene.addSphere(sphere2);
+	Material mirror = Material();
+	mirror.color = Vec3(0, 0, 0);
+	mirror.refractiveIndex = 1.000000000000000001;
+	mirror.shininess = 1024.0;
+	mirror.specular = 0.99999999;
+	mirror.transparency = 0.0;
+
+	/*Material blueMat = Material();
+	blueMat.color = Vec3(0, 0, 1);
+	blueMat.refractiveIndex = 1e3;
+	blueMat.shininess = 128.0;
+	blueMat.specular = 0.5;
+	blueMat.transparency = 0.9;*/
+
+	Sphere sphere1(3, Vec3(-14, 0, 9), redMat);
+	Sphere sphere2(5, Vec3(5, 0, 14), mirror);
+	//Sphere sphere3(4, Vec3(10, 0, 8), blueMat);
+
+	scene.AddSphere(sphere1);
+	scene.AddSphere(sphere2);
+	//scene.AddSphere(sphere3);
 
 	double distance = 15;
 
@@ -193,27 +215,35 @@ int main()
 		Vec3(1, 1, 1)
 	};
 
-	for (int i = 0; i < normalDirections.size(); i++)
+	for (size_t i = 0; i < normalDirections.size(); i++)
 	{
 		Vec3 dir = normalDirections[i];
 		Vec3 col = planeColors[i];
+		Material mat = Material();
+		mat.transparency = 0.0;
+		mat.specular = 0.01;
+		mat.color = col;
+		mat.shininess = 0.128;
+		mat.refractiveIndex = 1.5;
 
-        Plane plane(dir * -distance, dir, col);
-        scene.addPlane(plane);
+        Plane plane(dir * -distance, dir, mat);
+        scene.AddPlane(plane);
 	}
 
-	//scene.addLight(Light(Vec3(10, 10, 5), Vec3(0, 1, 1), 50));
-	//scene.addLight(Light(Vec3(-10, -10, 5), Vec3(1, 0, 1), 50));
+	auto firstLight = Light(Vec3(10, 10, 5), Vec3(0, 1, 1), 50);
+	auto secondLight = Light(Vec3(-10, 10, 5), Vec3(1, 1, 0), 50);
 
-	Light light1(Vec3(0, 0, 0), Vec3(1, 1, 1), 100);
-	Light light2(Vec3(0, 0, 8), Vec3(1, 1, 1), 75);
-	scene.addLight(light1);
-	scene.addLight(light2);
+	/*scene.AddLight(firstLight);
+	scene.AddLight(secondLight);*/
 
-	// record time of generation
+	Light light1(Vec3(0, 3, 0), Vec3(1, 1, 1), 250);
+	//Light light2(Vec3(0, 0, 8), Vec3(1, 1, 1), 75);
+	scene.AddLight(light1);
+	//scene.AddLight(light2);
+
 
 	auto gen_start = std::chrono::high_resolution_clock::now();
-	std::vector<Vec3> pixels = scene.GenerateImage();
+	std::vector<Vec3> pixels = scene.RenderImage();
 	auto gen_end = std::chrono::high_resolution_clock::now();
 
 	auto gen_ms = std::chrono::duration_cast<std::chrono::milliseconds>(gen_end - gen_start).count();
@@ -237,7 +267,7 @@ int main()
 	for (size_t i = 0; i < allTonemapped.size(); i++) {
 		std::string tmFilename = tonemapNames[i];
 		writePPM(tmFilename + ".ppm", allTonemapped[i], WIDTH, HEIGHT);
-		std::string command = "ffmpeg -y -f image2 -i \"" + tmFilename + ".ppm\" \"" + tmFilename + ".png\"";
+		std::string command = "ffmpeg -y -loglevel error -i \"" + tmFilename + ".ppm\" -frames:v 1 \"" + tmFilename + ".png\"";
 		int rc = std::system(command.c_str());
 		if (rc == 0 && std::filesystem::exists(tmFilename + ".png")) {
 			std::cout << "Conversion PPM -> PNG réussie :" << tmFilename << ".png\n";

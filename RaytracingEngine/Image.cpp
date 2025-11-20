@@ -1,19 +1,14 @@
-#pragma once
-
 #include <fstream>
 #include <iostream>
 #include <vector>
 #include <stdexcept>
 #include <string>
-#include <sstream>
 #include <iomanip>
 #include <algorithm>
 
-#include <cmath>
 #include "Math.h"
 
-// write vector<Vec3> to a PPM file
-void writePPM(const std::string& filename, const std::vector<Color>& pixels, int width, int height)
+void writePPM(const std::string& filename, const std::vector<Color>& pixels, const size_t width, const size_t height)
 {
 	std::ofstream ofs(filename, std::ios::out | std::ios::binary);
 	if (!ofs) {
@@ -32,5 +27,5 @@ void writePPM(const std::string& filename, const std::vector<Color>& pixels, int
 		throw std::runtime_error("Error occurred while writing to file");
 	}
 
-	std::cout << "Image written to " << filename << std::endl;
+	std::cout << "Image written to " << filename << "\n";
 }
