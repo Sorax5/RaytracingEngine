@@ -14,6 +14,7 @@ private:
 
     std::vector<Sphere> spheres;
     std::vector<Plane> planes;
+	std::vector<Triangle> triangles;
     std::vector<Light> lights;
 
     Camera camera;
@@ -73,38 +74,48 @@ private:
             normal = -normal;
         }
 
-        auto diffuseAccumulation = Vec3{0,0,0};
-        auto specularAccumlation = Vec3{0,0,0};
+        auto diffuseAccumulation = Vec3{ 0,0,0 };
+        auto specularAccumlation = Vec3{ 0,0,0 };
 
         for (const auto& light : lights) {
-            const Vec3 lightToHit = light.dirTo(hit.hitPoint);
+            // Utilise directement la position de la light pour éviter ambiguïtés
+            Vec3 vecToLight = light.position - hit.hitPoint;
+            const double distanceToLight = vecToLight.length();
+            if (distanceToLight <= 0.0) continue;
+            Vec3 lightToHit = vecToLight / distanceToLight; // normalisé
+
             const double normalDotLightHit = std::max(0.0, normal.dot(lightToHit));
             if (normalDotLightHit <= 0.0)
             {
-	            continue;
+                continue;
             }
 
-            const double distanceToLight = light.distanceTo(hit.hitPoint);
             if (distanceToLight <= bias)
             {
-	            continue;
+                continue;
             }
 
-            Rayon shadowRay{ hit.hitPoint + lightToHit * bias, lightToHit };
+            // shadow ray : origine offset le long de la normale pour éviter self-intersection
+            Rayon shadowRay{ hit.hitPoint + normal * bias, lightToHit };
             const double transmittance = computeTransmittance(shadowRay, distanceToLight - bias, bias);
             if (transmittance <= bias)
             {
-	            continue;
+                continue;
             }
 
-            diffuseAccumulation += light.contributionFrom(distanceToLight, normalDotLightHit) * transmittance;
+            // contribution physique simple : (light.color * intensity) / d^2 * N·L
+            Vec3 emitted = light.color * light.intensity;
+            Vec3 contribution = emitted * (1.0 / (distanceToLight * distanceToLight)) * normalDotLightHit;
+
+            diffuseAccumulation += contribution * transmittance;
 
             if (material.transparency <= 0.0 && material.specular > 0.0) {
                 Vec3 halfVector = (lightToHit + viewDir).normalize();
                 double NdotH = std::max(0.0, normal.dot(halfVector));
                 if (NdotH > 0.0) {
                     const double specFactor = std::pow(NdotH, material.shininess);
-                    specularAccumlation += light.contributionFrom(distanceToLight, specFactor) * transmittance;
+                    // speculaire pondéré par la même attenuation et transmittance
+                    specularAccumlation += (emitted * (1.0 / (distanceToLight * distanceToLight))) * specFactor * transmittance;
                 }
             }
         }
@@ -132,6 +143,16 @@ private:
         const Vec3 normal = frontFace ? hit.normal : -hit.normal;
         const Vec3 viewDir = -incoming;
         const double cosTheta = std::max(0.0, normal.dot(viewDir));
+
+        static constexpr bool visualizeNormals = false;
+        if (visualizeNormals) {
+            if (!std::isfinite(hit.distance) ||
+                !std::isfinite(hit.normal.x) || !std::isfinite(hit.normal.y) || !std::isfinite(hit.normal.z)) {
+                return Vec3(1.0, 0.0, 1.0); // magenta = hit invalide
+            }
+            Vec3 n = normal.normalize();
+            return Vec3((n.x * 0.5) + 0.5, (n.y * 0.5) + 0.5, (n.z * 0.5) + 0.5);
+        }
 
         constexpr double etaI = 1.0;
         const double etaT = material.refractiveIndex;
@@ -177,11 +198,13 @@ public:
         this->spheres = std::vector<Sphere>();
         this->planes = std::vector<Plane>();
         this->lights = std::vector<Light>();
+		this->triangles = std::vector<Triangle>();
     }
 
     void AddSphere(Sphere& sphere) { spheres.emplace_back(sphere); }
     void AddPlane(Plane& plane) { planes.emplace_back(plane); }
     void AddLight(Light& light) { lights.emplace_back(light); }
+	void AddTriangle(Triangle& triangle) { triangles.emplace_back(triangle); }
 
     size_t GetPixelIndex(const size_t x, const size_t y) const {
         return y * camera.width + x;
@@ -192,7 +215,10 @@ public:
 
         for (size_t sphereIndex = 0; sphereIndex < spheres.size(); ++sphereIndex) {
             if (auto hitOpt = spheres[sphereIndex].GetHitInfoAt(ray, sphereIndex); hitOpt) {
-                if (HitInfo hit = hitOpt.value(); !closest.has_value() || hit.isCloserThan(closest.value())) {
+                HitInfo hit = hitOpt.value();
+                // Debug marker pour sphère
+                hit.material.color = Vec3(0.0, 0.0, 1.0); // bleu
+                if (!closest.has_value() || hit.isCloserThan(closest.value())) {
                     closest = hit;
                 }
             }
@@ -200,7 +226,21 @@ public:
 
         for (size_t planeIndex = 0; planeIndex < planes.size(); ++planeIndex) {
             if (auto hitOpt = planes[planeIndex].getHitInfoAt(ray, planeIndex); hitOpt) {
-                if (HitInfo hit = hitOpt.value(); !closest.has_value() || hit.isCloserThan(closest.value())) {
+                HitInfo hit = hitOpt.value();
+                // Debug marker pour plan
+                hit.material.color = Vec3(0.0, 1.0, 0.0); // vert
+                if (!closest.has_value() || hit.isCloserThan(closest.value())) {
+                    closest = hit;
+                }
+            }
+        }
+
+        for (size_t triangleIndex = 0; triangleIndex < triangles.size(); ++triangleIndex) {
+            if (auto hitOpt = triangles[triangleIndex].GetHitInfoAt(ray, triangleIndex); hitOpt) {
+                HitInfo hit = hitOpt.value();
+                // Debug marker pour triangle
+                hit.material.color = Vec3(1.0, 0.0, 0.0); // rouge
+                if (!closest.has_value() || hit.isCloserThan(closest.value())) {
                     closest = hit;
                 }
             }
@@ -210,7 +250,7 @@ public:
     }
 
     bool IntersectAnyBefore(const Rayon& ray, const double maxDist) const {
-        if (spheres.empty() && planes.empty()) {
+		if (spheres.empty() && planes.empty() && triangles.empty()) {
             return false;
         }
 
@@ -223,11 +263,20 @@ public:
         }
 
         for (auto plane : planes) {
-            if (auto intersection = plane.intersect(ray)) {
+            if (auto intersection = plane.Intersect(ray)) {
                 if (const double dist = intersection.value(); dist > 0.0 && dist < maxDist) {
                     return true;
                 }
             }
+        }
+
+        for (auto triangle : triangles)
+        {
+            if (auto intersection = triangle.Intersect(ray)) {
+                if (const double dist = intersection.value(); dist > 0.0 && dist < maxDist) {
+                    return true;
+                }
+			}
         }
 
         return false;

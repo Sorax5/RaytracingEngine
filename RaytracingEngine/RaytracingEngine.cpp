@@ -170,10 +170,10 @@ int main()
 
 	Material redMat = Material();
 	redMat.color = Vec3(1, 0, 0);
-	redMat.refractiveIndex = 1.5;
+	redMat.refractiveIndex = 1.0;
 	redMat.shininess = 64.0;
 	redMat.specular = 0.9;
-	redMat.transparency = 0.5;
+	redMat.transparency = 0.0;
 
 	Material mirror = Material();
 	mirror.color = Vec3(0, 0, 0);
@@ -189,13 +189,21 @@ int main()
 	blueMat.specular = 0.5;
 	blueMat.transparency = 0.9;*/
 
-	Sphere sphere1(3, Vec3(-14, 0, 9), redMat);
-	Sphere sphere2(5, Vec3(5, 0, 14), mirror);
+	//Sphere sphere1(3, Vec3(-14, 0, 9), redMat);
+	//Sphere sphere2(5, Vec3(5, 0, 14), mirror);
 	//Sphere sphere3(4, Vec3(10, 0, 8), blueMat);
 
-	scene.AddSphere(sphere1);
-	scene.AddSphere(sphere2);
+	//scene.AddSphere(sphere1);
+	//scene.AddSphere(sphere2);
 	//scene.AddSphere(sphere3);
+
+	Triangle triangle1(
+		Vec3(4, -2, 0),
+		Vec3(0, 3, -1),
+		Vec3(-4, -2, 0),
+		redMat
+	);
+	scene.AddTriangle(triangle1);
 
 	double distance = 15;
 

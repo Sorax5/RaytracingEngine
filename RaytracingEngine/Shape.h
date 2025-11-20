@@ -146,7 +146,7 @@ public:
         this->material = material;
     }
 
-    std::optional<double> intersect(const Rayon& ray) const {
+    std::optional<double> Intersect(const Rayon& ray) const {
         const double denom = normal.dot(ray.direction);
         if (std::abs(denom) > 1e-6) {
             const Vec3 p0l0 = transform.position - ray.origin;
@@ -158,12 +158,12 @@ public:
         return std::nullopt;
     }
 
-    std::optional<Vec3> getNormalAt() const {
+    std::optional<Vec3> GetNormalAt() const {
         return normal;
     }
 
     std::optional<HitInfo> getHitInfoAt(const Rayon& ray, const size_t index) const {
-        if (const auto intersectionOpt = intersect(ray); intersectionOpt)
+        if (const auto intersectionOpt = Intersect(ray); intersectionOpt)
         {
             const double intersection = intersectionOpt.value();
             return HitInfo {
@@ -171,7 +171,7 @@ public:
 				.distance = intersection,
 				.index = index,
 				.material = material,
-				.normal = getNormalAt().value(),
+				.normal = GetNormalAt().value(),
 				.hitPoint = ray.pointAtDistance(intersection)
             };
         }
@@ -190,49 +190,65 @@ private:
 	Vec3 v0, v1, v2;
 	Material material;
 public:
-	Triangle(const Vec3& vertex0, const Vec3& vertex1, const Vec3& vertex2, const Vec3& col = Vec3(1, 1, 1))
+	Triangle(const Vec3& vertex0, const Vec3& vertex1, const Vec3& vertex2, const Material& mat = Material())
 		: v0(vertex0), v1(vertex1), v2(vertex2) {
-		material.color = col;
+		material = mat;
 	}
 
-	std::optional<double> intersect(const Rayon& ray) const {
-		const double EPSILON = 1e-6;
+	std::optional<double> Intersect(const Rayon& ray) const {
+		constexpr double EPSILON = 1e-6;
 		Vec3 edge1 = v1 - v0;
 		Vec3 edge2 = v2 - v0;
+
 		Vec3 h = ray.direction.cross(edge2);
 		double a = edge1.dot(h);
 		if (a > -EPSILON && a < EPSILON)
-			return std::nullopt;
+		{
+            return std::nullopt;
+		}
+			
 		double f = 1.0 / a;
 		Vec3 s = ray.origin - v0;
 		double u = f * s.dot(h);
 		if (u < 0.0 || u > 1.0)
-			return std::nullopt;
+		{
+            return std::nullopt;
+		}
+			
 		Vec3 q = s.cross(edge1);
 		double v = f * ray.direction.dot(q);
 		if (v < 0.0 || u + v > 1.0)
-			return std::nullopt;
+		{
+            return std::nullopt;
+		}
+			
 		double t = f * edge2.dot(q);
 		if (t > EPSILON)
-			return { t };
+		{
+            return { t };
+		}
+			
 		else
-			return std::nullopt;
+		{
+            return std::nullopt;
+		}
+			
 	}
 
-	std::optional<Vec3> getNormalAt() const {
+	std::optional<Vec3> GetNormalAt() const {
 		Vec3 normal = (v1 - v0).cross(v2 - v0).normalize();
 		return normal;
 	}
 
-	std::optional<HitInfo> getHitInfoAt(const Rayon& ray, size_t index) const {
-		std::optional<double> intersection = intersect(ray);
+	std::optional<HitInfo> GetHitInfoAt(const Rayon& ray, size_t index) const {
+		std::optional<double> intersection = Intersect(ray);
 		if (intersection.has_value())
 		{
 			Vec3 hitPoint = ray.pointAtDistance(intersection.value());
-			Vec3 normal = getNormalAt().value();
+			Vec3 normal = GetNormalAt().value();
 			return HitInfo{
-				intersection.value(),
 				HitType::TRIANGLE,
+                intersection.value(),
 				index,
 				material,
 				normal,
