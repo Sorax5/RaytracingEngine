@@ -4,6 +4,8 @@
 #include "Shape.h"
 #include "Light.h"
 #include <algorithm>
+#include <iostream>
+#include <ranges>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -15,6 +17,7 @@ private:
     std::vector<Sphere> spheres;
     std::vector<Plane> planes;
 	std::vector<Triangle> triangles;
+	std::vector<Model> models;
     std::vector<Light> lights;
 
     Camera camera;
@@ -47,6 +50,13 @@ private:
             const double t = hit.distance;
             if (t <= 0.0) {
                 r.origin = r.origin + r.direction * (bias);
+                traveled += bias;
+                continue;
+            }
+
+            if (t <= bias) {
+                r.origin = r.pointAtDistance(t) + r.direction * bias;
+                traveled += t + bias;
                 continue;
             }
 
@@ -66,23 +76,18 @@ private:
         return std::clamp(T, 0.0, 1.0);
     }
 
-    Vec3 directLightning(const HitInfo& hit, const Vec3& viewDir, const double bias) const {
+    Vec3 directLightning(const HitInfo& hit, const Vec3& viewDir, const Vec3& normalIn, const double bias) const {
         const Material& material = hit.material;
-
-        Vec3 normal = hit.normal;
-        if (normal.dot(viewDir) < 0.0) {
-            normal = -normal;
-        }
+        Vec3 normal = normalIn.normalize();
 
         auto diffuseAccumulation = Vec3{ 0,0,0 };
         auto specularAccumlation = Vec3{ 0,0,0 };
 
         for (const auto& light : lights) {
-            // Utilise directement la position de la light pour éviter ambiguïtés
             Vec3 vecToLight = light.position - hit.hitPoint;
             const double distanceToLight = vecToLight.length();
             if (distanceToLight <= 0.0) continue;
-            Vec3 lightToHit = vecToLight / distanceToLight; // normalisé
+            Vec3 lightToHit = vecToLight / distanceToLight;
 
             const double normalDotLightHit = std::max(0.0, normal.dot(lightToHit));
             if (normalDotLightHit <= 0.0)
@@ -95,7 +100,6 @@ private:
                 continue;
             }
 
-            // shadow ray : origine offset le long de la normale pour éviter self-intersection
             Rayon shadowRay{ hit.hitPoint + normal * bias, lightToHit };
             const double transmittance = computeTransmittance(shadowRay, distanceToLight - bias, bias);
             if (transmittance <= bias)
@@ -103,7 +107,6 @@ private:
                 continue;
             }
 
-            // contribution physique simple : (light.color * intensity) / d^2 * N·L
             Vec3 emitted = light.color * light.intensity;
             Vec3 contribution = emitted * (1.0 / (distanceToLight * distanceToLight)) * normalDotLightHit;
 
@@ -151,6 +154,7 @@ private:
                 return Vec3(1.0, 0.0, 1.0); // magenta = hit invalide
             }
             Vec3 n = normal.normalize();
+            // mapping standard pour debug normals
             return Vec3((n.x * 0.5) + 0.5, (n.y * 0.5) + 0.5, (n.z * 0.5) + 0.5);
         }
 
@@ -161,7 +165,7 @@ private:
 
         double transparency = std::clamp(material.transparency, 0.0, 1.0);
 
-        Vec3 localLight = directLightning(hit, viewDir, bias);
+        Vec3 localLight = directLightning(hit, viewDir, normal, bias);
         Vec3 finalLight{0,0,0};
 
         if (transparency < 1.0) {
@@ -178,7 +182,7 @@ private:
                     finalLight += tc.value() * (transparency * (1.0 - fresnelAmount));
                 }
             } else {
-				fresnelAmount = 1.0; // Total reflection interne
+				fresnelAmount = 1.0;
             }
         }
 
@@ -205,6 +209,7 @@ public:
     void AddPlane(Plane& plane) { planes.emplace_back(plane); }
     void AddLight(Light& light) { lights.emplace_back(light); }
 	void AddTriangle(Triangle& triangle) { triangles.emplace_back(triangle); }
+	void AddModel(Model& model) { models.emplace_back(model); }
 
     size_t GetPixelIndex(const size_t x, const size_t y) const {
         return y * camera.width + x;
@@ -215,21 +220,15 @@ public:
 
         for (size_t sphereIndex = 0; sphereIndex < spheres.size(); ++sphereIndex) {
             if (auto hitOpt = spheres[sphereIndex].GetHitInfoAt(ray, sphereIndex); hitOpt) {
-                HitInfo hit = hitOpt.value();
-                // Debug marker pour sphère
-                hit.material.color = Vec3(0.0, 0.0, 1.0); // bleu
-                if (!closest.has_value() || hit.isCloserThan(closest.value())) {
+                if (HitInfo hit = hitOpt.value(); !closest.has_value() || hit.isCloserThan(closest.value())) {
                     closest = hit;
                 }
             }
         }
 
         for (size_t planeIndex = 0; planeIndex < planes.size(); ++planeIndex) {
-            if (auto hitOpt = planes[planeIndex].getHitInfoAt(ray, planeIndex); hitOpt) {
-                HitInfo hit = hitOpt.value();
-                // Debug marker pour plan
-                hit.material.color = Vec3(0.0, 1.0, 0.0); // vert
-                if (!closest.has_value() || hit.isCloserThan(closest.value())) {
+            if (auto hitOpt = planes[planeIndex].GetHitInfoAt(ray, planeIndex); hitOpt) {
+                if (HitInfo hit = hitOpt.value(); !closest.has_value() || hit.isCloserThan(closest.value())) {
                     closest = hit;
                 }
             }
@@ -237,10 +236,18 @@ public:
 
         for (size_t triangleIndex = 0; triangleIndex < triangles.size(); ++triangleIndex) {
             if (auto hitOpt = triangles[triangleIndex].GetHitInfoAt(ray, triangleIndex); hitOpt) {
-                HitInfo hit = hitOpt.value();
-                // Debug marker pour triangle
-                hit.material.color = Vec3(1.0, 0.0, 0.0); // rouge
-                if (!closest.has_value() || hit.isCloserThan(closest.value())) {
+                if (HitInfo hit = hitOpt.value(); !closest.has_value() || hit.isCloserThan(closest.value())) {
+                    closest = hit;
+                }
+            }
+        }
+
+        for (int modelIndex = 0; modelIndex < models.size(); ++modelIndex)
+        {
+            if (auto hitOpt = models[modelIndex].GetHitInfoAt(ray, modelIndex); hitOpt)
+            {
+                
+                if (HitInfo hit = hitOpt.value(); !closest.has_value() || hit.isCloserThan(closest.value())) {
                     closest = hit;
                 }
             }
@@ -250,36 +257,22 @@ public:
     }
 
     bool IntersectAnyBefore(const Rayon& ray, const double maxDist) const {
-		if (spheres.empty() && planes.empty() && triangles.empty()) {
+        if (spheres.empty() && planes.empty() && triangles.empty() && models.empty()) {
             return false;
         }
 
-        for (auto sphere : spheres) {
-            if (auto intersection = sphere.Intersect(ray)) {
-                if (const double dist = intersection.value(); dist > 0.0 && dist < maxDist) {
-                    return true;
-                }
-            }
-        }
+        auto within = [&](const double d) { return d > 0.0 && d < maxDist; };
 
-        for (auto plane : planes) {
-            if (auto intersection = plane.Intersect(ray)) {
-                if (const double dist = intersection.value(); dist > 0.0 && dist < maxDist) {
-                    return true;
+        auto any_hit = [&](const auto& container) {
+            return std::ranges::any_of(container, [&](const auto& obj) {
+                if (auto distOpt = obj.Intersect(ray)) {
+                    return within(*distOpt);
                 }
-            }
-        }
+                return false;
+            });
+        };
 
-        for (auto triangle : triangles)
-        {
-            if (auto intersection = triangle.Intersect(ray)) {
-                if (const double dist = intersection.value(); dist > 0.0 && dist < maxDist) {
-                    return true;
-                }
-			}
-        }
-
-        return false;
+        return any_hit(spheres) || any_hit(planes) || any_hit(triangles) || any_hit(models);
     }
 
     std::optional<HitInfo> CalculatePixelDepth(const size_t x, const size_t y, const bool aa) const {
@@ -295,7 +288,7 @@ public:
 
         for (int aa = 0; aa < aaCount; ++aa)
         {
-	        constexpr double bias = 1e-6;
+	        constexpr double bias = 1e-3;
 	        if (auto color = GenerateAntiAliasing(x, y, aa > 0 && aaCount > 1, bias)) {
                 accumulatedColor += color.value();
                 samples += 1;
@@ -303,7 +296,7 @@ public:
         }
 
         if (samples > 0) {
-            accumulatedColor /= static_cast<double>(samples);
+            accumulatedColor /= samples;
             return accumulatedColor;
         }
 

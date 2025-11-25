@@ -10,6 +10,60 @@
 #include <iostream>
 #include <stdlib.h>
 
+#include "tiny_obj_loader.h"
+
+Model LoadObject(const std::string& modelName, const Transform& transform = Transform(), const Material& material = Material()) {
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+    std::string err;
+
+    std::filesystem::path modelPath(modelName);
+    std::string baseDir = modelPath.has_parent_path() ? modelPath.parent_path().string() : std::string();
+
+    bool ret = tinyobj::LoadObj(
+        &attrib,
+        &shapes,
+        &materials,
+        &err,
+        modelName.c_str(),
+        baseDir.empty() ? nullptr : baseDir.c_str(),
+        true // triangulate
+    );
+
+    if (!err.empty()) {
+        std::cerr << "OBJ ERR: " << err << std::endl;
+    }
+    if (!ret) {
+        throw std::runtime_error("Failed to load/parse .obj.");
+    }
+
+    std::vector<Vec3> vertices;
+    vertices.reserve(attrib.vertices.size() / 3);
+    for (size_t v = 0; v < attrib.vertices.size() / 3; v++) {
+        vertices.emplace_back(
+            attrib.vertices[3 * v + 0],
+            attrib.vertices[3 * v + 1],
+            attrib.vertices[3 * v + 2]
+        );
+    }
+
+    std::vector<int> indices;
+    indices.reserve([&shapes] {
+        size_t count = 0;
+        for (const auto& s : shapes) { count += s.mesh.indices.size(); }
+        return count;
+    }());
+    for (const auto& shape : shapes) {
+        for (const auto& index : shape.mesh.indices) {
+            indices.push_back(index.vertex_index);
+        }
+    }
+
+    // Return model with provided transform and material so triangles derive offset later
+    return Model(indices, transform, material, vertices);
+}
+
 constexpr auto WIDTH = 1000;
 constexpr auto HEIGHT = 1000;
 
@@ -122,13 +176,13 @@ std::vector<Color> tonemap(const std::vector<Vec3>& pixels)
 std::vector<std::vector<Color>> tonemapAll(const std::vector<Vec3> pixels)
 {
 	std::vector<std::vector<Color>> allTonemapped;
-	std::vector<Color> simpleMapped = std::vector<Color>(pixels.size());
-	std::vector<Color> reinhardSimpleMapped = std::vector<Color>(pixels.size());
-	std::vector<Color> reinhardExtendedMapped = std::vector<Color>(pixels.size());
-	std::vector<Color> reinhardExtendedLuminanceMapped = std::vector<Color>(pixels.size());
-	std::vector<Color> reinhardJodieMapped = std::vector<Color>(pixels.size());
-	std::vector<Color> uncharted2Mapped = std::vector<Color>(pixels.size());
-	std::vector<Color> acesMapped = std::vector<Color>(pixels.size());
+	std::vector<Color> simpleMapped(pixels.size());
+	std::vector<Color> reinhardSimpleMapped(pixels.size());
+	std::vector<Color> reinhardExtendedMapped(pixels.size());
+	std::vector<Color> reinhardExtendedLuminanceMapped(pixels.size());
+	std::vector<Color> reinhardJodieMapped(pixels.size());
+	std::vector<Color> uncharted2Mapped(pixels.size());
+	std::vector<Color> acesMapped(pixels.size());
 
 	for (size_t i = 0; i < pixels.size(); i++) {
 		Vec3 current = pixels[i];
@@ -161,49 +215,40 @@ std::vector<std::vector<Color>> tonemapAll(const std::vector<Vec3> pixels)
 
 int main()
 {
+	#ifdef _OPENMP
 	int n_threads = omp_get_max_threads();
 	std::cout << "Nombre de threads par défaut : " << n_threads << "\n";
+	#endif
 
-	Vec3 origin = Vec3(0, 0, -10);
-	Camera camera = Camera(origin, 500, WIDTH, HEIGHT, 0, 200);
-	Scene scene = Scene(camera);
+	Vec3 origin(0, 0, -25);
+	Camera camera(origin, 500, WIDTH, HEIGHT, 0, 200);
+	Scene scene(camera);
 
-	Material redMat = Material();
-	redMat.color = Vec3(1, 0, 0);
-	redMat.refractiveIndex = 1.0;
-	redMat.shininess = 64.0;
-	redMat.specular = 0.9;
+	Material redMat; // assign fields
 	redMat.transparency = 0.0;
+	redMat.specular = 0.01;
+	redMat.color = Vec3(1, 0, 0);
+	redMat.shininess = 0.128;
+	redMat.refractiveIndex = 1.5;
 
-	Material mirror = Material();
+	Material mirror;
 	mirror.color = Vec3(0, 0, 0);
 	mirror.refractiveIndex = 1.000000000000000001;
 	mirror.shininess = 1024.0;
 	mirror.specular = 0.99999999;
 	mirror.transparency = 0.0;
 
-	/*Material blueMat = Material();
-	blueMat.color = Vec3(0, 0, 1);
-	blueMat.refractiveIndex = 1e3;
-	blueMat.shininess = 128.0;
-	blueMat.specular = 0.5;
-	blueMat.transparency = 0.9;*/
+	Material monkeyMaterial{
+		.color = Vec3(0,0,1),
+		.shininess = 128.0,
+		.specular = 0.5,
+		.transparency = 0.0,
+		.refractiveIndex = 1.5
+	};
 
-	//Sphere sphere1(3, Vec3(-14, 0, 9), redMat);
-	//Sphere sphere2(5, Vec3(5, 0, 14), mirror);
-	//Sphere sphere3(4, Vec3(10, 0, 8), blueMat);
-
-	//scene.AddSphere(sphere1);
-	//scene.AddSphere(sphere2);
-	//scene.AddSphere(sphere3);
-
-	Triangle triangle1(
-		Vec3(4, -2, 0),
-		Vec3(0, 3, -1),
-		Vec3(-4, -2, 0),
-		redMat
-	);
-	scene.AddTriangle(triangle1);
+	Transform monkeyTransform { Vec3(0, 0, 10), Vec3(0,0,0), Vec3(1,1,1) };
+	auto monkey = LoadObject("box.obj", monkeyTransform, monkeyMaterial);
+	scene.AddModel(monkey);
 
 	double distance = 15;
 
@@ -227,7 +272,7 @@ int main()
 	{
 		Vec3 dir = normalDirections[i];
 		Vec3 col = planeColors[i];
-		Material mat = Material();
+		Material mat;
 		mat.transparency = 0.0;
 		mat.specular = 0.01;
 		mat.color = col;
@@ -238,17 +283,11 @@ int main()
         scene.AddPlane(plane);
 	}
 
-	auto firstLight = Light(Vec3(10, 10, 5), Vec3(0, 1, 1), 50);
-	auto secondLight = Light(Vec3(-10, 10, 5), Vec3(1, 1, 0), 50);
+	auto firstLight = Light(Vec3(0, 0, -5), Vec3(1, 1, 1), 150);
+	auto secondLight = Light(Vec3(-2, 2, -5), Vec3(1, 1, 1), 150);
 
-	/*scene.AddLight(firstLight);
-	scene.AddLight(secondLight);*/
-
-	Light light1(Vec3(0, 3, 0), Vec3(1, 1, 1), 250);
-	//Light light2(Vec3(0, 0, 8), Vec3(1, 1, 1), 75);
-	scene.AddLight(light1);
-	//scene.AddLight(light2);
-
+	scene.AddLight(firstLight);
+	scene.AddLight(secondLight);
 
 	auto gen_start = std::chrono::high_resolution_clock::now();
 	std::vector<Vec3> pixels = scene.RenderImage();
@@ -286,20 +325,6 @@ int main()
 			std::cerr << "Conversion PPM -> PNG échouée (code: " << rc << "). Vérifier que ffmpeg est installé et dans le PATH.\n";
 		}
 	}
-
-
-	/*writePPM(filename + ".ppm", colorPixels, WIDTH, HEIGHT);
-
-	std::string command = "ffmpeg -y -f image2 -i \"" + filename + ".ppm\" \"" + filename + ".png\"";
-	int rc = std::system(command.c_str());
-	if (rc == 0 && std::filesystem::exists(filename + ".png")) {
-		std::cout << "Conversion PPM -> PNG réussie :" << filename << ".png\n";
-		std::string deleteCommand = "del \"" + filename + ".ppm\"";
-		std::system(deleteCommand.c_str());
-	}
-	else {
-		std::cerr << "Conversion PPM -> PNG échouée (code: " << rc << "). Vérifier que ffmpeg est installé et dans le PATH.\n";
-	}*/
 
 	return 0;
 }

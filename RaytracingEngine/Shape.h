@@ -158,11 +158,11 @@ public:
         return std::nullopt;
     }
 
-    std::optional<Vec3> GetNormalAt() const {
+    Vec3 GetNormalAt() const {
         return normal;
     }
 
-    std::optional<HitInfo> getHitInfoAt(const Rayon& ray, const size_t index) const {
+    std::optional<HitInfo> GetHitInfoAt(const Rayon& ray, const size_t index) const {
         if (const auto intersectionOpt = Intersect(ray); intersectionOpt)
         {
             const double intersection = intersectionOpt.value();
@@ -171,7 +171,7 @@ public:
 				.distance = intersection,
 				.index = index,
 				.material = material,
-				.normal = GetNormalAt().value(),
+				.normal = GetNormalAt(),
 				.hitPoint = ray.pointAtDistance(intersection)
             };
         }
@@ -179,84 +179,129 @@ public:
         return std::nullopt;
     }
 
-	Vec3 getNormal() const { return normal; }
-	void setNormal(const Vec3& norm) { normal = norm.normalize(); }
-	Material getMaterial() const { return material; }
-	Transform getTransform() const { return transform; }
+	Vec3 GetNormal() const { return normal; }
+	void SetNormal(const Vec3& norm) { normal = norm.normalize(); }
+	Material GetMaterial() const { return material; }
+	Transform GetTransform() const { return transform; }
 };
 
 class Triangle {
 private:
 	Vec3 v0, v1, v2;
+	Transform transform; // now stored
 	Material material;
 public:
-	Triangle(const Vec3& vertex0, const Vec3& vertex1, const Vec3& vertex2, const Material& mat = Material())
-		: v0(vertex0), v1(vertex1), v2(vertex2) {
-		material = mat;
-	}
+	Triangle(const Vec3& vertex0, const Vec3& vertex1, const Vec3& vertex2, const Material& mat = Material(), const Transform& t = Transform())
+		: v0(vertex0), v1(vertex1), v2(vertex2), transform(t), material(mat) {}
+
+	// Apply translation (and simple uniform scale) from transform for intersection tests
+	Vec3 tv0() const { return v0 + transform.position; }
+	Vec3 tv1() const { return v1 + transform.position; }
+	Vec3 tv2() const { return v2 + transform.position; }
 
 	std::optional<double> Intersect(const Rayon& ray) const {
 		constexpr double EPSILON = 1e-6;
-		Vec3 edge1 = v1 - v0;
-		Vec3 edge2 = v2 - v0;
+		const auto a0 = tv0();
+		const auto edge1 = tv1() - a0;
+		const auto edge2 = tv2() - a0;
 
-		Vec3 h = ray.direction.cross(edge2);
-		double a = edge1.dot(h);
-		if (a > -EPSILON && a < EPSILON)
-		{
-            return std::nullopt;
-		}
-			
-		double f = 1.0 / a;
-		Vec3 s = ray.origin - v0;
-		double u = f * s.dot(h);
-		if (u < 0.0 || u > 1.0)
-		{
-            return std::nullopt;
-		}
-			
-		Vec3 q = s.cross(edge1);
-		double v = f * ray.direction.dot(q);
-		if (v < 0.0 || u + v > 1.0)
-		{
-            return std::nullopt;
-		}
-			
-		double t = f * edge2.dot(q);
-		if (t > EPSILON)
-		{
-            return { t };
-		}
-			
-		else
-		{
-            return std::nullopt;
-		}
-			
+		const auto h = ray.direction.cross(edge2);
+		const double a = edge1.dot(h);
+		if (a > -EPSILON && a < EPSILON) { return std::nullopt; }
+		const double f = 1.0 / a;
+		const auto s = ray.origin - a0;
+		const double u = f * s.dot(h);
+		if (u < 0.0 || u > 1.0) { return std::nullopt; }
+		const Vec3 q = s.cross(edge1);
+		const double v = f * ray.direction.dot(q);
+		if (v < 0.0 || u + v > 1.0) { return std::nullopt; }
+		if (auto t = f * edge2.dot(q); t > EPSILON) { return { t }; }
+		return std::nullopt;
 	}
 
 	std::optional<Vec3> GetNormalAt() const {
-		Vec3 normal = (v1 - v0).cross(v2 - v0).normalize();
-		return normal;
+		const Vec3 edge1 = v1 - v0; // local normal unaffected by translation
+		const Vec3 edge2 = v2 - v0;
+		Vec3 n = edge1.cross(edge2);
+        return n.normalize();
 	}
 
-	std::optional<HitInfo> GetHitInfoAt(const Rayon& ray, size_t index) const {
-		std::optional<double> intersection = Intersect(ray);
-		if (intersection.has_value())
-		{
-			Vec3 hitPoint = ray.pointAtDistance(intersection.value());
-			Vec3 normal = GetNormalAt().value();
-			return HitInfo{
-				HitType::TRIANGLE,
-                intersection.value(),
-				index,
-				material,
-				normal,
-				hitPoint
-			};
+	std::optional<HitInfo> GetHitInfoAt(const Rayon& ray, const size_t index) const {
+		if (auto intersection = Intersect(ray); intersection) {
+			const Vec3 hitPoint = ray.pointAtDistance(intersection.value());
+			const Vec3 normal = GetNormalAt().value();
+            return HitInfo{
+                .type = HitType::TRIANGLE,
+				.distance = intersection.value(),
+                .index = index,
+                .material = material,
+                .normal = normal,
+				.hitPoint = hitPoint
+            };
 		}
 		return std::nullopt;
 	}
 
-	Material getMaterial() const { return material; }
+	Material GetMaterial() const { return material; }
+};
+
+class Model
+{
+private:
+    std::vector<int> vertices;
+	std::vector<Vec3> vertexPositions;
+	Transform transform;
+	Material material;
+public:
+	Model(const std::vector<int>& vertices, const Transform& transform = Transform(), const Material& material = Material(), const std::vector<Vec3>& vertexPositions = std::vector<Vec3>()) : vertices(vertices), transform(transform), material(material), vertexPositions(vertexPositions) {}
+
+    std::vector<Triangle> GetTrianglesFromModel(const Material& overrideMaterial) const {
+        std::vector<Triangle> triangles;
+        for (size_t i = 0; i < vertices.size(); i += 3) {
+            Vec3 v0 = vertexPositions[vertices[i]];
+            Vec3 v1 = vertexPositions[vertices[i + 1]];
+            Vec3 v2 = vertexPositions[vertices[i + 2]];
+            triangles.emplace_back(Triangle(v0, v1, v2, overrideMaterial, transform));
+        }
+        return triangles;
+	}
+
+    std::optional<HitInfo> GetHitInfoAt(const Rayon& ray, const size_t index) const {
+        std::optional<HitInfo> closestHit = std::nullopt;
+        for (size_t i = 0; i < vertices.size(); i += 3) {
+            Vec3 v0 = vertexPositions[vertices[i]];
+            Vec3 v1 = vertexPositions[vertices[i + 1]];
+            Vec3 v2 = vertexPositions[vertices[i + 2]];
+            Triangle triangle(v0, v1, v2, material, transform);
+            if (auto hitOpt = triangle.GetHitInfoAt(ray, index); hitOpt) {
+                if (HitInfo hit = hitOpt.value(); !closestHit.has_value() || hit.isCloserThan(closestHit.value())) {
+                    closestHit = hit;
+                }
+            }
+        }
+        return closestHit;
+	}
+
+    std::optional<double> Intersect(const Rayon& ray) const {
+        std::optional<double> closestT = std::nullopt;
+        for (size_t i = 0; i < vertices.size(); i += 3) {
+            Vec3 v0 = vertexPositions[vertices[i]];
+            Vec3 v1 = vertexPositions[vertices[i + 1]];
+            Vec3 v2 = vertexPositions[vertices[i + 2]];
+            Triangle triangle(v0, v1, v2, material, transform);
+            if (auto tOpt = triangle.Intersect(ray); tOpt) {
+                double t = tOpt.value();
+                if (!closestT.has_value() || t < closestT.value()) {
+                    closestT = t;
+                }
+            }
+        }
+        return closestT;
+	}
+
+	Transform GetTransform() const { return transform; }
+	Material GetMaterial() const { return material; }
+
+	void SetTransform(const Transform& t) { transform = t; }
+	void SetMaterial(const Material& m) { material = m; }
 };
